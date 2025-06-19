@@ -1,0 +1,8 @@
+users:
+  type: table
+  queries:
+  - Login:
+      invisible: true
+      type: static
+      roles: Guest
+      value: login

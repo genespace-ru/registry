@@ -1,0 +1,39 @@
+en:
+  entities:
+  - index:
+    - topics: page
+      entries:
+      - title: registry
+      - description: registry application
+  - _homepage_:
+    - topics: displayName
+      entries:
+      - homepage: Homepage
+  - _welcome_:
+    - topics: displayName
+      entries:
+      - Welcome: Welcome
+  - _logout_:
+    - topics: displayName
+      entries:
+      - Logout: Logout
+  - users:
+    - topics: displayName
+      entries:
+      - Logout: Users
+    - topics: viewName
+      entries:
+      - Login: Login
+  - query.jsp:
+    - topics: page
+      entries:
+      - Active From: Active from
+      - Active To: Active to
+      - Class: Class
+      - Fio: Full name
+      - Prev: Previous
+      - amount: Amount
+      - birthDay: Birth day
+      - changeDate: Change date
+      - 'no': no
+      - 'yes': yes

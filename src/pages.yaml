@@ -1,0 +1,7 @@
+pages:
+  en:
+    welcome.be:
+      file: en/welcome.html
+  ru:
+    welcome.be:
+      file: ru/welcome.html

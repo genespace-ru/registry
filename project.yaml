@@ -1,0 +1,22 @@
+registry:
+  projectFileStructure:
+    groovyQueriesDir: src/main/groovy
+    groovyOperationsDir: src/main/groovy
+    groovyExtendersDir: src/main/groovy
+  features:
+  - beSqlQueries
+  #- eventDbLogging
+  #- compiledGroovy
+  l10n: [en,ru]
+  modules:
+  - core:
+      entities:
+      - users
+      - _logout_
+  application:
+  - _welcome_
+  scripts:
+  - Post-db
+  - dictionaries
+
+

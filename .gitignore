@@ -1,0 +1,32 @@
+.settings
+src/profile.local
+package-lock.json 
+
+/.project
+/target
+
+.npmyrc
+
+### frontend build dir ###
+/src/main/webapp/static
+/src/main/webapp/WEB-INF/templates/manager/index.html
+/src/main/webapp/WEB-INF/templates/index.html
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### Eclipse ###
+.classpath
+.project
+.settings/
+*.ucls
+
+
+### web ###
+node_modules/
+dist/
+public/
+coverage/

@@ -1,0 +1,79 @@
+{
+  "name": "registry",
+  "version": "1.0.0",
+  "main": "src/frontend/scripts/main.js",
+  "scripts": {
+    "ws": "ws -d dist/uncompressed",
+    "start": "webpack-dev-server --host 127.0.0.1 --progress --profile --colors",
+    "hot": "webpack-dev-server --host 127.0.0.1 --progress --profile --colors --mode development --hot --open",
+    "build": "webpack --config webpack.production.config.js --progress --profile --colors --env.build",
+    "build-min": "webpack --config webpack.production.config.js --progress --profile --colors --env.build --env.min",
+    "test": "jest",
+    "watch": "npm test -- --watch",
+    "coverage": "npm test -- --coverage",
+    "coveralls": "npm run-script coverage && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js"
+  },
+  "dependencies": {
+    "be5-react": "^1.1.24",
+    "beanexplorer-react": "^2.1.12",
+    "react": "^16.14.0",
+    "react-dom": "^16.14.0"
+  },
+  "devDependencies": {
+    "@babel/plugin-external-helpers": "^7.12.1",
+    "@babel/plugin-transform-modules-commonjs": "^7.12.1",
+    "@babel/preset-env": "^7.12.10",
+    "@babel/preset-react": "^7.12.10",
+    "@babel/runtime": "^7.12.5",
+    "babel-jest": "^26.6.3",
+    "babel-loader": "^8.2.2",
+    "babel-polyfill": "^6.26.0",
+    "coveralls": "^3.1.0",
+    "css-loader": "^5.0.1",
+    "enzyme": "^3.11.0",
+    "fibers": "^5.0.0",
+    "file-loader": "^6.2.0",
+    "filemanager-webpack-plugin": "^2.0.5",
+    "html-webpack-plugin": "^4.5.0",
+    "jest": "^26.6.3",
+    "json-server": "^0.16.3",
+    "local-web-server": "^4.2.1",
+    "mini-css-extract-plugin": "1.3.0",
+    "optimize-css-assets-webpack-plugin": "^5.0.4",
+    "postcss-loader": "^4.1.0",
+    "raw-loader": "^4.0.2",
+    "react-hot-loader": "^4.13.0",
+    "react-test-renderer": "16.14.0",
+    "sass": "^1.30.0",
+    "sass-loader": "^10.1.0",
+    "style-loader": "^2.0.0",
+    "url-loader": "^4.1.1",
+    "webpack": "^4.44.2",
+    "webpack-bundle-analyzer": "^3.9.0",
+    "webpack-cleanup-plugin": "^0.5.1",
+    "webpack-cli": "^3.3.12",
+    "webpack-dashboard": "^3.2.1",
+    "webpack-dev-server": "^3.11.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DevelopmentOnTheEdge/registry.git"
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "\\.(css|sass|scss|png|jpg)$": "<rootDir>/test/fileTransformer.js"
+    },
+    "roots": [
+      "./test/",
+      "./src/scripts"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.js"
+    ],
+    "moduleDirectories": [
+      "node_modules",
+      "shared",
+      "./src/scripts"
+    ]
+  }
+}

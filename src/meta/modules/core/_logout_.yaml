@@ -1,0 +1,6 @@
+_logout_:
+  queries:
+  - All records:
+      type: static
+      invisible: true
+      value: logout

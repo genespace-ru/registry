@@ -1,0 +1,35 @@
+<!doctype html>
+<html th:lang="${lang}" lang="en">
+<head>
+    <meta charset="utf-8">
+    <base th:href="${baseUrl}" href="/">
+    <title th:text="${title}">React App</title>
+    <meta name="description" th:attr="content=${description}"  content="" />
+    <link rel="icon"
+          href="/static/images/favicon.ico"
+          type="image/x-icon" />
+
+    <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.21/css/dataTables.bootstrap4.css">
+
+    <style type="text/css">.document-loader{height:3px;width:100%;position:absolute;top:0;left:0;overflow:hidden;background-color: transparent}
+    .document-loader:before{display:block;position:absolute;content:"";left:0;width:10%;height:3px;background-color:#40CCCC;
+        animation:loading 10s linear infinite}@keyframes loading{from{left:-50%;width:30%}50%{width:30%}70%{width:70%}80%{left:50%}95%{left:120%}to{left:100%}}</style>
+</head>
+<body>
+    <div id="infoMessage" th:text="${message}"></div>
+    <div id="app"><div class="document-loader"/></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.12.1/underscore.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.js"></script>
+    <!--Bootstrap here is needed for tabbed operations to work. Reason unknown-->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.2/js/bootstrap.js"></script> 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.21/js/jquery.dataTables.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.21/js/dataTables.bootstrap4.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.18.1/moment.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.18.1/locale/ru.js"></script>
+</body>
+</html>
