@@ -1,0 +1,54 @@
+repositories:
+  type: table
+  displayName: Repositories
+  order: 20
+  doc: Repository with resources. Currently only GitHub.
+  primaryKey: ID
+  
+  scheme:
+    columns:
+    - ID:
+        type: KEYTYPE
+        autoIncrement: true
+        primaryKey: true
+    - url:
+        type: VARCHAR(200)
+        doc: repository URL
+    - doi:
+        type: VARCHAR(50)
+        canBeNull: true
+        doc: DOI for this Git repository     
+    - whoInserted___:
+        type: VARCHAR(100)
+        defaultValue: '''Administrator'''
+    - creationDate___:
+        type: DATETIME
+        defaultValue: CURRENT_TIMESTAMP
+    - whoModified___:
+        type: VARCHAR(100)
+        canBeNull: true
+    - modificationDate___:
+        type: DATETIME
+        canBeNull: true
+        
+  queries:
+  - '*** Selection view ***':
+      code: |-
+        SELECT
+          r.ID,
+          SUBSTRING(r.url, 9)
+        FROM repositstaff s
+           LEFT JOIN persons p ON s.personID = p.ID
+           LEFT JOIN jobTitles j ON j.ID = s.jobTitleID
+           
+  - All records:
+      roles: '@AllRoles'
+      layout: '{"quickType":"select"}'
+      code: |-
+        SELECT
+          r.ID AS "ID",
+          CONCAT('<a href="', r.url, '" target="_blank">', SUBSTRING(r.url, 9), '</a>') AS "Repository",
+          CONCAT('<a href="https://', r.doi, '" target="_blank">', r.doi, '</a>') AS "DOI",
+          <@COMMON_WHO_FIELDS 'r' />
+        FROM repositories r
+        ORDER BY r.url

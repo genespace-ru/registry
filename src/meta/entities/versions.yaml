@@ -1,0 +1,55 @@
+versions:
+  type: collection
+  displayName: Versions
+  doc: Repository versions - Git branches and tags.
+  primaryKey: ID
+  
+  scheme:
+    columns:
+    - ID:
+        type: KEYTYPE
+        autoIncrement: true
+        primaryKey: true
+    - repository:
+        type: KEYTYPE
+        reference: repositories.ID
+        doc: repository
+    - name:
+        type: VARCHAR(200)
+        doc: branch or tga name
+    - commit:
+        type: VARCHAR(40)
+        doc: Git commit
+    - dateModified:
+        type: DATETIME
+        doc: date of last update to Git reference
+    - type:
+        type: ENUM(branch, tag)
+        defaultValue: "'branch'"
+        doc: type of commit - branch or tag
+    - doi:
+        type: VARCHAR(50)
+        canBeNull: true
+        doc: DOI for this version of Git repository     
+    - whoInserted___:
+        type: VARCHAR(100)
+        defaultValue: '''Administrator'''
+    - creationDate___:
+        type: DATETIME
+        defaultValue: CURRENT_TIMESTAMP
+    - whoModified___:
+        type: VARCHAR(100)
+        canBeNull: true
+    - modificationDate___:
+        type: DATETIME
+        canBeNull: true
+        
+  queries:
+  - '*** Selection view ***':
+      code: |-
+        SELECT
+          v.ID,
+          v.name
+        FROM versions v
+        ORDER BY dateModified DESC
+          

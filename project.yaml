@@ -4,7 +4,7 @@ registry:
     groovyOperationsDir: src/main/groovy
     groovyExtendersDir: src/main/groovy
   features:
-  - beSqlQueries
+  #- beSqlQueries
   #- eventDbLogging
   #- compiledGroovy
   l10n: [en,ru]
@@ -15,8 +15,15 @@ registry:
       - _logout_
   application:
   - _welcome_
+  - repositories
+  - resources
+  - resource2versions
+  - versions
   scripts:
   - Post-db
   - dictionaries
+  - test/testData
+  includes:
+  - common
 
 

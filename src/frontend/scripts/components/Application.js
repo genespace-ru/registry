@@ -8,7 +8,7 @@ class Application extends React.Component
         return (
             <div>
                 <Be5Components/>
-                <NavbarMenuContainer brand='registry' languageBox={true}/>
+                <NavbarMenuContainer brand='Genespace registry' languageBox={false}/>
                 <div className="container">
                     <div className="row">
                         <Document frontendParams={{documentName: MAIN_DOCUMENT}} />

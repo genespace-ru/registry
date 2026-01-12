@@ -1,0 +1,89 @@
+resources:
+  type: table
+  displayName: Resources
+  order: 10
+  doc: Resources. Currently - tools, workflows, notebooks.
+  primaryKey: ID
+  
+  scheme:
+    columns:
+    - ID:
+        type: KEYTYPE
+        autoIncrement: true
+        primaryKey: true
+    - repository:
+        type: KEYTYPE
+        reference: repositories.ID
+        doc: repository
+    - name:
+        type: VARCHAR(256)
+        doc: |
+          Resource name. It may only consist of alphanumerics and internal underscores and hyphens, 
+          but no spaces or other characters. Names may not exceed 256 characters.
+    - type:
+        type: ENUM(tool, workflow, notebook)
+        doc: resource type
+    - language:
+        type: ENUM(CWL, WDL, NFL)
+        doc: resource language
+    - primaryDescriptorPath:
+        type: TEXT
+        doc: |
+          The absolute path to the primary descriptor file in the Git repository.
+           - For CWL, the primary descriptor is a .cwl file.
+           - For WDL, the primary descriptor is a .wdl file.
+           - Nextflow differs from these as the primary descriptor is a nextflow.config file.
+    - readMePath:
+        type: TEXT
+        canBeNull: true
+        doc: |
+          An optional path to a resource-specific readme in the Git repository. 
+    - topic:
+        type: VARCHAR(150)
+        canBeNull: true
+        doc: |
+          An optional short text description of the resource.
+    - info:
+        type: JSONB 
+        canBeNull: true
+        doc: Other structured information from dockstore.yml
+                            
+    - whoInserted___:
+        type: VARCHAR(100)
+        defaultValue: '''Administrator'''
+    - creationDate___:
+        type: DATETIME
+        defaultValue: CURRENT_TIMESTAMP
+    - whoModified___:
+        type: VARCHAR(100)
+        canBeNull: true
+    - modificationDate___:
+        type: DATETIME
+        canBeNull: true
+        
+  queries:
+  - '*** Selection view ***':
+      code: |-
+        SELECT
+          rs.ID,
+          CONCAT(SUBSTRING(rs.url, 9), '/', rs.name, '(', rs.type, ')')
+        FROM resources rs
+        JOIN repositories rp ON rp.ID = rs.repository
+        ORDER BY 2
+           
+  - All records:
+      roles: '@AllRoles'
+      layout: '{"quickType":"select"}'
+      code: |-
+        SELECT
+          rs.ID AS "___ID",
+          CONCAT('<a href="', rp.url, '" target="_blank">', SUBSTRING(rp.url, 9), '</a>') AS "Repository",
+          rs.name AS "Name",
+          rs.type AS "Type;<quick visible='true' />",
+          rs.language AS "Language;<quick visible='true' />",
+          rs.topic AS "Description;<quick visible='true' />",
+          rs.info AS "Info;<quick visible='false' />",
+          <@COMMON_WHO_FIELDS 'rs' />
+        FROM resources rs
+        JOIN repositories rp ON rp.ID = rs.repository
+        ORDER BY 2

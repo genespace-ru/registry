@@ -1,0 +1,44 @@
+resource2versions:
+  type: collection
+  doc: Link between resources and version in the same Git repository.
+  primaryKey: ID
+  
+  scheme:
+    columns:
+    - ID:
+        type: KEYTYPE
+        autoIncrement: true
+        primaryKey: true
+    - resource:
+        type: KEYTYPE
+        reference: resources.ID
+        doc: resource
+    - version:
+        type: KEYTYPE
+        reference: versions.ID
+        doc: version (branch or tag in Git repository)
+    - language:
+        type: VARCHAR(20)
+        canBeNull: true
+        doc: language version used by corresponding resource
+    - valid:
+        type: ENUM(yes, no) 
+        canBeNull: true
+        doc: a version is valid if the descriptor file(s) have been successfully validated         
+    - doi:
+        type: VARCHAR(50)
+        canBeNull: true
+        doc: DOI for this resource of this version of Git repository     
+    - snapshot:
+        type: ENUM(yes, no) 
+        defaultValue: "'no'"
+        doc: indicates that this version of the resource is snapshot 
+                    
+    indices:
+    - IDX_RESOURCE:
+        columns: resource
+    - IDX_VERSION:
+        columns: version
+
+
+                  
