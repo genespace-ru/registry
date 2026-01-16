@@ -1,7 +1,7 @@
 connectionProfiles:
   profiles:
     dockerBuild:
-      connectionUrl: jdbc:postgresql://docker:5444/registry2
+      connectionUrl: jdbc:postgresql://docker.dote.ru:5444/registry2
       username: registry2
       password: registry2
       properties:
