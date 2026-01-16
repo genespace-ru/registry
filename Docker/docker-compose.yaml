@@ -13,7 +13,7 @@ services:
       - POSTGRES_DB=registry2
     restart: unless-stopped
     volumes:
-      - ./empty.sql:/docker-entrypoint-initdb.d/init.sql
+      - /servers/genespace-registry/empty.sql:/docker-entrypoint-initdb.d/init.sql
       - /servers/genespace-registry/postgres-registry:/var/lib/postgresql/data
   app:
     image: tomcat:8-jdk21-corretto
