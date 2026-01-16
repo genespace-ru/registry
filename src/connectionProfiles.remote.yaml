@@ -1,2 +1,15 @@
 connectionProfiles:
-  profiles: {}
+  profiles:
+    dockerBuild:
+      connectionUrl: jdbc:postgresql://docker:5444/registry2
+      username: registry2
+      password: registry2
+      properties:
+      - SESSION_STORE: '/sessions/registry.ser'
+    dockerRun:
+      connectionUrl: jdbc:postgresql://postgres-registry:5432/registry2
+      #connectionUrl: jdbc:postgresql://docker:5444/registry2
+      username: registry2
+      password: registry2
+      properties:
+      - SESSION_STORE: '/sessions/registry.ser'
