@@ -1,0 +1,36 @@
+version: "3"
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres-registry
+    expose:
+      - 5444
+    ports:
+      - 5444:5432
+    environment:
+      - POSTGRES_PASSWORD=registry2
+      - POSTGRES_USER=registry2
+      - POSTGRES_DB=registry2
+    restart: unless-stopped
+    volumes:
+      - ./empty.sql:/docker-entrypoint-initdb.d/init.sql
+      - /servers/genespace-registry/postgres-registry:/var/lib/postgresql/data
+  app:
+    image: tomcat:8-jdk21-corretto
+    container_name: app-registry
+    depends_on:
+      - postgres
+    environment:
+      - CATALINA_OPTS=-Djava.security.egd=file:/dev/./urandom
+      #- CATALINA_OPTS=-Djava.security.egd=file:/dev/./urandom -Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=8106
+    expose:
+      - 9401
+    ports:
+      - 9401:8080
+    volumes:
+      - /servers/genespace-registry/docker.out/logs:/usr/local/tomcat/logs
+      - /servers/genespace-registry/sessions:/sessions
+      - /servers/genespace-registry/docker.in/lims.war:/usr/local/tomcat/webapps/ROOT.war
+      - /servers/genespace-registry/docker.in/postgresql-42.2.6.jar:/usr/local/tomcat/lib/postgresql-42.2.6.jar
+      - /servers/genespace-registry/docker.in/src:/hotreload/src
+      - /servers/genespace-registry/docker.in/project.yaml:/hotreload/project.yaml
