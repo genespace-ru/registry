@@ -22,7 +22,7 @@ registry:
   scripts:
   - Post-db
   - dictionaries
-  - test/testData
+  - workflows
   includes:
   - common
 

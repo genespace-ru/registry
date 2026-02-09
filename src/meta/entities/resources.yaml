@@ -86,4 +86,4 @@ resources:
           <@COMMON_WHO_FIELDS 'rs' />
         FROM resources rs
         JOIN repositories rp ON rp.ID = rs.repository
-        ORDER BY 2
+        ORDER BY 1
