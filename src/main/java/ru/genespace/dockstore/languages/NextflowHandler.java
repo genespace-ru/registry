@@ -1,0 +1,847 @@
+/*
+ *    Copyright 2017 OICR
+ *
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ */
+package ru.genespace.dockstore.languages;
+
+import com.google.common.base.CharMatcher;
+import com.google.common.base.Joiner;
+
+import biouml.plugins.wdl.NextFlowRunner;
+import groovyjarjarantlr.RecognitionException;
+import groovyjarjarantlr.TokenStreamException;
+import groovyjarjarantlr.collections.AST;
+import ru.genespace.dockstore.DescriptorLanguage;
+import ru.genespace.dockstore.DescriptorLanguage.FileType;
+import ru.genespace.dockstore.SourceFile;
+import ru.genespace.dockstore.WorkflowVersion;
+import ru.genespace.github.GitHubRepository;
+import ru.genespace.misc.CustomLoggedException;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.StringReader;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Properties;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import org.apache.commons.configuration2.Configuration;
+import org.apache.commons.configuration2.ConfigurationConverter;
+import org.apache.commons.configuration2.INIConfiguration;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.http.HttpStatus;
+import org.codehaus.groovy.antlr.GroovySourceAST;
+import org.codehaus.groovy.antlr.parser.GroovyLexer;
+import org.codehaus.groovy.antlr.parser.GroovyRecognizer;
+
+/**
+ * This class will eventually handle support for Nextflow
+ */
+public class NextflowHandler extends AbstractLanguageHandler implements LanguageHandlerInterface {
+
+    protected static final Pattern IMPORT_PATTERN = Pattern.compile("^\\s*include.+?from.+?'.+?'", Pattern.DOTALL | Pattern.MULTILINE);
+    private static final Pattern INCLUDE_CONFIG_PATTERN = Pattern.compile("(?i)(?m)^[ \t]*includeConfig(.*)");
+
+    @Override
+    protected DescriptorLanguage.FileType getFileType() {
+        return DescriptorLanguage.FileType.NEXTFLOW;
+    }
+
+    @Override
+    public WorkflowVersion parseWorkflowContent(String filepath, String content, Set<SourceFile> sourceFiles, WorkflowVersion version)
+    {
+        // this is where we can look for things like Nextflow config files or maybe a future Dockstore.yml
+        //        try {
+        //            final Configuration configuration = NextflowUtilities.grabConfig(content);
+        //            String descriptionInProgress = null;
+        //            if (configuration.containsKey("manifest.description")) {
+        //                version.setDescriptionAndDescriptionSource(configuration.getString("manifest.description"), DescriptionSource.DESCRIPTOR);
+        //                descriptionInProgress = version.getDescription();
+        //            }
+        //            // Add authors from descriptor
+        //            if (configuration.containsKey("manifest.author")) {
+        //                String[] authors = configuration.getString("manifest.author").split(",");
+        //                for (String author : authors) {
+        //                    Author newAuthor = new Author(author.trim());
+        //                    version.addAuthor(newAuthor);
+        //                }
+        //            }
+        //            // look for extended help message from nf-core workflows when it is available
+        //            final String mainScriptPath = getMainScriptPath(configuration);
+        //            final Optional<SourceFile> potentialScript = findSourceFileByPath(sourceFiles, mainScriptPath);
+        //            if (potentialScript.isPresent()) {
+        //                String helpMessage = getHelpMessage(potentialScript.get().getContent());
+        //                // arbitrarily follow description, markdown looks funny without the line breaks
+        //                if (!StringUtils.isEmpty(helpMessage)) {
+        //                    helpMessage = "\n\n" + helpMessage;
+        //                }
+        //                String builder = Stream.of(descriptionInProgress, helpMessage).filter(s -> s != null && !s.isEmpty())
+        //                    .collect(Collectors.joining(""));
+        //                version.setDescriptionAndDescriptionSource(builder, DescriptionSource.DESCRIPTOR);
+        //            } else {
+        //                createValidationForMissingMainScript(version, filepath, mainScriptPath);
+        //            }
+        //            updateDescriptorTypeAndEngineVersion(sourceFiles, version, configuration, potentialScript);
+        //        } catch (NextflowUtilities.NextflowParsingException e) {
+        //            createValidationForGeneralFailure(version, filepath);
+        //        }
+        return version;
+    }
+
+    /**
+     *  Sets source files' type version, and updates the workflow version descriptor type version
+     *  based on the source files's descriptor type version.
+     * @param sourceFiles
+     * @param version
+     * @param configuration
+     * @param mainScript
+     */
+    private void updateDescriptorTypeAndEngineVersion(final Set<SourceFile> sourceFiles, final WorkflowVersion version,
+            final Configuration configuration, final Optional<SourceFile> mainScript) {
+        final String dslVersion = this.calculateDslVersion(configuration, mainScript).orElse(null);
+        sourceFiles.stream()
+            // Exclude config file and test params
+            .filter(sourceFile -> sourceFile.getType() == FileType.NEXTFLOW)
+            .forEach(sourceFile -> sourceFile.getMetadata().setTypeVersion(dslVersion));
+        version.setDescriptorTypeVersionsFromSourceFiles(sourceFiles);
+        //!!!version.getVersionMetadata().setEngineVersions(getEngineVersions(configuration));
+    }
+
+    @Override
+    public Map<String, SourceFile> processImports(String repositoryId, String content, WorkflowVersion version, GitHubRepository sourceCodeRepoInterface, String filepath)
+    {
+        LOG.info("Processing import for repository {}, version {}, filepath {}", repositoryId, version.getName(), filepath);
+        // FIXME: see{@link NextflowUtilities#grabConfig(String) grabConfig} method for comments on why
+        // we have to look at imports in this crummy way
+        final Matcher matcher = INCLUDE_CONFIG_PATTERN.matcher(content);
+        Set<String> suspectedConfigImports = new HashSet<>();
+        while (matcher.find()) {
+            suspectedConfigImports.add(CharMatcher.is('\'').trimFrom(matcher.group(1).trim()));
+        }
+        Map<String, SourceFile> imports = new HashMap<>();
+        Configuration configuration;
+        try
+        {
+            configuration = grabConfig( content, repositoryId );
+        }
+        catch (Exception e)
+        {
+            //createValidationForGeneralFailure(version, filepath);
+            //!!!log exception
+            return imports;
+        }
+
+        // add the Nextflow scripts
+        final String mainScriptPath = getMainScriptPath(configuration);
+        suspectedConfigImports.add(mainScriptPath);
+        //!!!handleSetOfIndividualFiles(repositoryId, version, sourceCodeRepoInterface, filepath, suspectedConfigImports, imports, DescriptorLanguage.FileType.NEXTFLOW);
+
+        Set<String> suspectedOtherWorkflowFiles = new HashSet<>();
+        // from https://nf-co.re/docs/contributing/pipelines/pipeline_file_structure well-known individual files like ro-crate-metadata.json, nextflow_schema.json, etc.
+        suspectedOtherWorkflowFiles.add("nextflow_schema.json");
+        suspectedOtherWorkflowFiles.add("CHANGELOG.md");
+        suspectedOtherWorkflowFiles.add("LICENSE");
+        suspectedOtherWorkflowFiles.add("CITATIONS.md");
+        suspectedOtherWorkflowFiles.add("modules.json");
+        suspectedOtherWorkflowFiles.add(".nf-core.yml");
+        suspectedOtherWorkflowFiles.add("ro-crate-metadata.json");
+        //!!!handleSetOfIndividualFiles(repositoryId, version, sourceCodeRepoInterface, filepath, suspectedOtherWorkflowFiles, imports, DescriptorLanguage.FileType.DOCKSTORE_WORKFLOW_OTHER);
+
+        // source files in /lib seem to be automatically added to the script classpath
+        // binaries are also there and will need to be ignored
+        List<String> strings = sourceCodeRepoInterface.listFiles(repositoryId, "/", version.getReference());
+        // bin, templates, and lib from https://training.nextflow.io/2.1/advanced/structure/#templates
+        handleNextflowImports(repositoryId, version, sourceCodeRepoInterface, imports, strings, "bin");
+        handleNextflowImports(repositoryId, version, sourceCodeRepoInterface, imports, strings, "templates");
+        handleNextflowImports(repositoryId, version, sourceCodeRepoInterface, imports, strings, "lib");
+        // from nf-core https://nf-co.re/docs/contributing/pipelines/pipeline_file_structure
+        handleNextflowImports(repositoryId, version, sourceCodeRepoInterface, imports, strings, "assets");
+        return imports;
+    }
+
+    /**
+     * @param content the content of the config file
+     * @param id
+     * @return a commons configuration file with the keys from the nextflow config file
+     */
+    public static Configuration grabConfig(String content, String id)
+    {
+        Path nextflowDir = null;
+        try
+        {
+            // FIXME: this sucks, but we need to ignore includeConfig lines. We basically have a chicken and the egg problem
+            // FIXME: the nextflow config command only works when all included files are present, however we're trying to
+            // FIXME: use the nextflow config command to figure out what the list of included files is to
+            // FIXME: determine what files we want to get from the GitHub API in the first place
+            // FIXME: secondary case: when looking for description and author, we don't actually need includes either
+            String newContent = content.replaceAll( "(?i)(?m)^[ \t]*includeConfig.*", "" );
+            // needed since Nextflow binary assumes content is in working directory
+            nextflowDir = Files.createTempDirectory( "nextflow" );
+            final Path tempFile = Paths.get( nextflowDir.toString(), "nextflow.config" );
+            Files.write( tempFile, newContent.getBytes( StandardCharsets.UTF_8 ) );
+            boolean isWindows = System.getProperty( "os.name" ).startsWith( "Windows" );
+            try
+            {
+                Properties properties = NextFlowRunner.getNextflowConfig( tempFile.toFile(), id, isWindows, true );
+                return ConfigurationConverter.getConfiguration( properties );
+            }
+            catch (Exception e)
+            {
+                throw new CustomLoggedException( "Unable to get nexflow config: " + e.getMessage() );
+            }
+        }
+        catch (IOException e)
+        {
+            throw new CustomLoggedException( "unable to parse nexflow config" );
+        }
+        finally
+        {
+            if( nextflowDir != null )
+            {
+                FileUtils.deleteQuietly( nextflowDir.toFile() );
+            }
+        }
+    }
+
+    //    private void handleSetOfIndividualFiles(String repositoryId, Version version, GitHubManager sourceCodeRepoInterface, String filepath, Set<String> suspectedConfigImports,
+    //        Map<String, SourceFile> imports, DescriptorLanguage.FileType fileType) {
+    //        for (String filename : suspectedConfigImports) {
+    //            String filenameAbsolutePath = unsafeConvertRelativePathToAbsolutePath(filepath, filename);
+    //            Optional<SourceFile> sourceFile = sourceCodeRepoInterface
+    //                .readFile(repositoryId, version, fileType, filenameAbsolutePath);
+    //            if (sourceFile.isPresent()) {
+    //                sourceFile.get().setPath(filename);
+    //                imports.put(filename, sourceFile.get());
+    //                imports.putAll(processOtherImports(repositoryId, sourceFile.get().getContent(), version, sourceCodeRepoInterface,
+    //                        sourceFile.get().getAbsolutePath()));
+    //            }
+    //        }
+    //    }
+
+    /**
+     * Similar to processImports() of other handlers.
+     * The current processImports() method looks for main.nf and similar so is not suitable for recursion.
+     * Looks for imports by searching for lines that start "include"
+     * @param repositoryId  The Git repository (ex. nextflow-io/rnaseq-nf)
+     * @param content   The contents of the file being analyzed
+     * @param version   The Git version (branch/tag) of the repository
+     * @param sourceCodeRepoInterface   The source code repository interface
+     * @param workingDirectoryForFile   The parent directory of the file being analyzed
+     * @return
+     */
+    //    private Map<String, SourceFile> processOtherImports(String repositoryId, String content, Version version,
+    //            GitHubManager sourceCodeRepoInterface, String workingDirectoryForFile) {
+    //        Map<String, SourceFile> imports = new HashMap<>();
+    //        Matcher m = IMPORT_PATTERN.matcher(content);
+    //        while (m.find()) {
+    //            String path = getRelativeImportPathFromLine(m.group(), workingDirectoryForFile);
+    //            String absoluteImportPath = unsafeConvertRelativePathToAbsolutePath(workingDirectoryForFile, path);
+    //            handleImport(repositoryId, version, imports, path, sourceCodeRepoInterface, absoluteImportPath);
+    //        }
+    //        Map<String, SourceFile> recursiveImports = new HashMap<>();
+    //        for (Map.Entry<String, SourceFile> importFile : imports.entrySet()) {
+    //            final Map<String, SourceFile> sourceFiles = processOtherImports(repositoryId, importFile.getValue().getContent(), version, sourceCodeRepoInterface, importFile.getKey());
+    //            recursiveImports.putAll(sourceFiles);
+    //        }
+    //        recursiveImports.putAll(imports);
+    //        return recursiveImports;
+    //    }
+
+    /**
+     * Give the line in the file that has the import, figure out what the relative path is
+     * @param line  A line in the file that has the import (ex. "include { RNASEQ } from './modules/rnaseq'")
+     * @return  The relative path
+     */
+    protected static String getRelativeImportPathFromLine(String line, String workingDirectoryForFile) {
+        final String nextflowFileExtension = ".nf";
+        String importPath = StringUtils.substringBetween(line, "'", "'");
+        importPath = importPath.replaceFirst(workingDirectoryForFile, "");
+        importPath = importPath.replaceFirst("^[.]/", "");
+        importPath = importPath.replaceFirst("^/", "");
+        // Sometimes the import line looks like "include { RNASEQ } from './modules/rnaseq'"
+        // "./modules/rnaseq" is not a file, it is actually "./modules/rnaseq.nf"
+        if (!importPath.endsWith(nextflowFileExtension)) {
+            importPath = importPath + nextflowFileExtension;
+        }
+        return importPath;
+    }
+
+    //    private void createValidationForGeneralFailure(WorkflowVersion version, String filepath) {
+    //        createValidation(version, false, filepath, "Nextflow config file is malformed or missing, cannot extract metadata");
+    //    }
+    //
+    //    private void createValidationForMissingMainScript(WorkflowVersion version, String filepath, String mainScriptName) {
+    //        createValidation(version, false, filepath, String.format("Could not find main script file '%s'", mainScriptName));
+    //    }
+
+    //    private void createValidation(WorkflowVersion version, boolean valid, String filepath, String message) {
+    //        Map<String, String> validationMessageObject = new HashMap<>();
+    //        validationMessageObject.put(filepath, message);
+    //        version.addOrUpdateValidation(new Validation(DescriptorLanguage.FileType.NEXTFLOW_CONFIG, valid, validationMessageObject));
+    //    }
+
+    private void handleNextflowImports(String repositoryId, WorkflowVersion version, GitHubRepository sourceCodeRepoInterface,
+        Map<String, SourceFile> imports, List<String> strings, String lib) {
+        if (strings.contains(lib)) {
+            List<String> libraries = sourceCodeRepoInterface.listFiles(repositoryId, lib, version.getReference());
+            for (String library : libraries) {
+                Optional<SourceFile> librarySourceFile = sourceCodeRepoInterface
+                    .readFile(repositoryId, version, DescriptorLanguage.FileType.NEXTFLOW, FilenameUtils.concat(lib, library));
+                librarySourceFile.ifPresent(sourceFile -> imports.put(lib + "/" + library, sourceFile));
+            }
+        }
+    }
+
+    private GroovySourceAST getFirstAstWithKeyword(GroovySourceAST ast, String keyword, boolean compareChild) {
+        return getFirstAstWithKeyword(ast, keyword, compareChild, new HashSet<>());
+    }
+
+    /**
+     * Returns the first AST found with some keyword as text
+     *
+     * @param ast          An AST
+     * @param keyword      Text to search node for (exact match)
+     * @param compareChild If true will check first child for keyword, if false will check current node
+     * @return AST with some keyword as text
+     */
+    private GroovySourceAST getFirstAstWithKeyword(GroovySourceAST ast, String keyword, boolean compareChild, Set<GroovySourceAST> seen) {
+        if (ast == null) {
+            return null;
+        }
+
+        if (seen.contains(ast)) {
+            return null;
+        }
+        seen.add(ast);
+
+        if (compareChild) {
+            if (ast.getFirstChild() != null && Objects.equals(ast.getFirstChild().getText(), keyword)) {
+                return ast;
+            }
+        } else {
+            if (Objects.equals(ast.getText(), keyword)) {
+                return ast;
+            }
+        }
+
+        int numChildren = ast.getNumberOfChildren();
+        GroovySourceAST subtree = null;
+
+        for (int i = 0; i < numChildren; i++) {
+            GroovySourceAST groovySourceAST = ast.childAt(i);
+            subtree = getFirstAstWithKeyword(groovySourceAST, keyword, compareChild, seen);
+            if (subtree != null) {
+                break;
+            }
+        }
+
+        if (subtree == null && ast.getNextSibling() != null) {
+            subtree = getFirstAstWithKeyword((GroovySourceAST)ast.getNextSibling(), keyword, compareChild, seen);
+        }
+        return subtree;
+    }
+
+    /**
+     * Given an AST for an EXPR will return the text name
+     *
+     * @param exprAST AST of an EXPR
+     * @return Input channel name
+     */
+    private String getInputChannelNameForEXPR(GroovySourceAST exprAST) {
+        try {
+            return exprAST.getFirstChild().getFirstChild().getNextSibling().getFirstChild().getText();
+        } catch (NullPointerException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Given an AST for a process, returns the name of the process
+     *
+     * @param processAST AST of a process
+     * @return Process name or null if there isn't one
+     */
+    private String getProcessValue(GroovySourceAST processAST) {
+        try {
+            return processAST.getNextSibling().getFirstChild().getFirstChild().getText();
+        } catch (NullPointerException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Get a list of all channel names for either inputs or outputs of an EXPR
+     *
+     * @param processAST AST of a process
+     * @return List of channels for inputs or outputs of a process
+     */
+    private List<String> getListOfIO(GroovySourceAST processAST) {
+        List<String> inputs = new ArrayList<>();
+        GroovySourceAST firstEXPR = getFirstAstWithKeyword(processAST, "EXPR", false);
+        inputs.add(getInputChannelNameForEXPR(firstEXPR));
+
+        // Only look at next sibling under certain conditions
+        if (!(processAST != null && processAST.getNextSibling() != null && processAST.getNextSibling().getFirstChild() != null && Objects
+            .equals(processAST.getNextSibling().getFirstChild().getText(), "output"))) {
+            if (processAST != null && processAST.getNextSibling() != null) {
+                inputs.addAll(getListOfIO((GroovySourceAST)processAST.getNextSibling()));
+            }
+        }
+        return inputs;
+    }
+
+    private List<GroovySourceAST> getSubtreesOfKeyword(GroovySourceAST ast, String keyword) {
+        return getSubtreesOfKeyword(ast, keyword, new HashSet<>());
+    }
+
+    /**
+     * Gets a list of all subtrees with text keyword
+     *
+     * @param ast     Some AST
+     * @param keyword A keyword of an existing node in an AST
+     * @return List of AST with some keyword
+     */
+    private List<GroovySourceAST> getSubtreesOfKeyword(GroovySourceAST ast, String keyword, Set<GroovySourceAST> seen) {
+
+        List<GroovySourceAST> subtrees = new ArrayList<>();
+        if (seen.contains(ast)) {
+            return subtrees;
+        }
+        seen.add(ast);
+
+        if (ast == null) {
+            return null;
+        }
+
+        if (Objects.equals(ast.getText(), keyword)) {
+            subtrees.add(ast);
+            return subtrees;
+        }
+
+        int numChildren = ast.getNumberOfChildren();
+
+        for (int i = 0; i < numChildren; i++) {
+            GroovySourceAST childAST = ast.childAt(i);
+            subtrees.addAll(getSubtreesOfKeyword(childAST, keyword, seen));
+        }
+
+        if (ast.getNextSibling() != null) {
+            subtrees.addAll(getSubtreesOfKeyword((GroovySourceAST)ast.getNextSibling(), keyword, seen));
+        }
+
+        return subtrees;
+    }
+
+    /**
+     * Returns a list of input channels the process AST depends on
+     *
+     * @param processAST AST of a process
+     * @return List of input channels for a process
+     */
+    private List<String> getInputDependencyList(GroovySourceAST processAST) {
+        GroovySourceAST inputAST = getFirstAstWithKeyword(processAST, "input", true);
+        if (inputAST != null) {
+            // Stops from parsing outside the input AST
+            inputAST.setNextSibling(null);
+            return getListOfIO(inputAST);
+        } else {
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Returns a list of all channels written to by the given process AST
+     *
+     * @param processAST AST of a process
+     * @return List of output channels for a process
+     */
+    private List<String> getOutputDependencyList(GroovySourceAST processAST) {
+        GroovySourceAST outputAst = getFirstAstWithKeyword(processAST, "output", true);
+        if (outputAst != null) {
+            // Stops from parsing outside the output AST
+            outputAst.setNextSibling(null);
+            return getListOfIO(outputAst);
+        } else {
+            return new ArrayList<>();
+        }
+    }
+
+    //    @Override
+    //    public Optional<String> getContent(String configPath, String configContent, Set<SourceFile> secondarySourceFiles, Type type, ToolDAO dao) {
+    //        String callType = "call"; // This may change later (ex. tool, workflow)
+    //        String toolType = "tool";
+    //
+    //        // Write main descriptor to file
+    //        // The use of temporary files is not needed here and might cause new problems
+    //        // Iterate over each call, grab docker containers
+    //
+    //        // nextflow uses the main script from the manifest as the main descriptor
+    //        // add the Nextflow scripts
+    //
+    //        Configuration configuration;
+    //        try {
+    //            configuration = NextflowUtilities.grabConfig(configContent);
+    //        } catch (NextflowUtilities.NextflowParsingException e) {
+    //            throw new CustomWebApplicationException(e.getMessage(), HttpStatus.SC_UNPROCESSABLE_ENTITY);
+    //        }
+    //        final String mainScriptPath = getMainScriptPath(configuration);
+    //        final String mainScriptContent = findSourceFileByPath(secondarySourceFiles, mainScriptPath).map(sf -> sf.getContent()).orElse(null);
+    //
+    //        // Get default container (process.container takes precedence over params.container)
+    //        String defaultContainer = null;
+    //        if (configuration.containsKey("params.container")) {
+    //            defaultContainer = configuration.getString("params.container");
+    //        }
+    //
+    //        if (configuration.containsKey("process.container")) {
+    //            defaultContainer = configuration.getString("process.container");
+    //        }
+    //
+    //        Map<String, DockerParameter> callToDockerMap = new HashMap<>();
+    //        String finalDefaultContainer = defaultContainer;
+    //
+    //        // Add all DockerMap from each secondary sourcefile
+    //        if (!secondarySourceFiles.isEmpty()) {
+    //            secondarySourceFiles.forEach(sourceFile -> callToDockerMap.putAll(getCallsToDockerMap(sourceFile.getContent(), finalDefaultContainer)));
+    //        }
+    //
+    //        callToDockerMap.putAll(getCallsToDockerMap(mainScriptContent, defaultContainer));
+    //        // Iterate over each call, determine dependencies
+    //        // Mapping of stepId -> array of dependencies for the step
+    //        Map<String, List<String>> callToDependencies = getCallsToDependencies(mainScriptContent);
+    //        // Get import files
+    //        Map<String, String> namespaceToPath = getImportMap(mainScriptContent);
+    //        Map<String, ToolInfo> toolInfoMap = WDLHandler.mapConverterToToolInfo(callToDockerMap, callToDependencies);
+    //        return convertMapsToContent(mainScriptPath, type, dao, callType, toolType, toolInfoMap, namespaceToPath);
+    //    }
+    //
+    //    private Map<String, String> getImportMap(String mainDescriptor) {
+    //        //TODO: deal with secondary files properly? (for DAG and tools display)
+    //        return new HashMap<>();
+    //    }
+    //
+    private String getMainScriptPath(Configuration configuration) {
+        if (configuration.containsKey("manifest.mainScript")) {
+            return configuration.getString("manifest.mainScript");
+        } else {
+            return "main.nf";
+        }
+    }
+
+    //
+    private List<String> getEngineVersions(Configuration configuration) {
+        final String nextflowVersion = "manifest.nextflowVersion";
+        if (configuration.containsKey(nextflowVersion)) {
+            // A language can be run in several engines, e.g., Cromwell and Miniwdl can run WDL.
+            // So, unlike language versions, store the engine name as well, even though for Nextflow
+            // there's currently only one known engine.
+            return List.of("Nextflow " + configuration.getString(nextflowVersion));
+        }
+        return List.of();
+    }
+
+    private Optional<SourceFile> findSourceFileByPath(Set<SourceFile> sourceFiles, String path) {
+        return sourceFiles.stream().filter(sourceFile -> Objects.equals(sourceFile.getPath(), path)).findFirst();
+    }
+
+    /**
+     * Get help message from nf-core workflows
+     *
+     * @return the aggregated help message
+     */
+    private String getHelpMessage(String mainDescriptor) {
+        try {
+            StringBuilder builder = new StringBuilder();
+            final List<GroovySourceAST> process = getGroovySourceASTList(mainDescriptor, "helpMessage");
+            if (process == null) {
+                return null;
+            }
+            process.forEach(ast -> getHelpMessage(ast, builder, new HashSet<GroovySourceAST>()));
+            return builder.toString();
+        } catch (IOException | TokenStreamException | RecognitionException e) {
+            LOG.warn("could not parse", e);
+        }
+        return null;
+    }
+
+    /**
+     * Aggregates the help message from what looks like log comments
+     *
+     * @param definition the ast
+     * @param builder    aggregates text
+     * @param set        the set of AST seen before (to avoid looping)
+     */
+    private void getHelpMessage(GroovySourceAST definition, StringBuilder builder, Set<GroovySourceAST> set) {
+        if (set.contains(definition)) {
+            return;
+        }
+        set.add(definition);
+        // not sure why groovy puts text under a type of 88, cannot find a constant for this
+        final int groovyTextType = 88;
+        if (definition.getType() == groovyTextType) {
+            builder.append(definition.getText());
+        }
+        for (int i = 0; i < definition.getNumberOfChildren(); i++) {
+            final GroovySourceAST groovySourceAST = definition.childAt(i);
+            getHelpMessage(groovySourceAST, builder, set);
+        }
+        GroovySourceAST nextSibling = (GroovySourceAST)definition.getNextSibling();
+        while (nextSibling != null) {
+            getHelpMessage(nextSibling, builder, set);
+            nextSibling = (GroovySourceAST)nextSibling.getNextSibling();
+        }
+    }
+
+    /**
+     * Given string content, look for a keyword inside the AST representation of it
+     *
+     * @param mainDescriptor content
+     * @param keyword        keyword to lookup
+     * @return nodes with the suspect content
+     * @throws RecognitionException
+     * @throws TokenStreamException
+     * @throws IOException
+     */
+    private List<GroovySourceAST> getGroovySourceASTList(String mainDescriptor, String keyword)
+        throws RecognitionException, TokenStreamException, IOException {
+        if (mainDescriptor == null) {
+            return null;
+        }
+        try (InputStream stream = IOUtils.toInputStream(mainDescriptor, StandardCharsets.UTF_8)) {
+            GroovyRecognizer make = GroovyRecognizer.make(new GroovyLexer(stream));
+            make.compilationUnit();
+            GroovySourceAST ast = (GroovySourceAST)make.getAST();
+            return getSubtreesOfKeyword(ast, keyword);
+        }
+    }
+
+    /**
+     * Returns map from names of processes to their dependencies (processes that had to come before)
+     *
+     * @param mainDescriptor
+     * @return
+     */
+    private Map<String, List<String>> getCallsToDependencies(String mainDescriptor) {
+        //TODO: create proper dependency arrays, for now just list processes sequentially
+        Map<String, List<String>> map = new HashMap<>();
+        try {
+            List<GroovySourceAST> processList = getGroovySourceASTList(mainDescriptor, "process");
+            if (processList == null) {
+                return map;
+            }
+            Map<String, List<String>> processNameToInputChannels = new HashMap<>();
+            Map<String, List<String>> processNameToOutputChannels = new HashMap<>();
+
+            processList.forEach((GroovySourceAST processAST) -> {
+                String processName = getProcessValue(processAST);
+                if (processName != null) {
+                    // Get a list of all channels that the process depends on
+                    List<String> inputs = getInputDependencyList(processAST);
+                    processNameToInputChannels.put(processName, inputs);
+
+                    // Get a list of all channels that the process writes to
+                    List<String> outputs = getOutputDependencyList(processAST);
+                    processNameToOutputChannels.put(processName, outputs);
+                }
+            });
+
+            // Create a map of process name to dependent processes
+            processNameToInputChannels.keySet().forEach((String processName) -> {
+                List<String> dependencies = new ArrayList<>();
+                processNameToInputChannels.get(processName).forEach((String channelRead) -> {
+                    processNameToOutputChannels.keySet().forEach((String dependentProcessName) -> {
+                        Optional<String> temp = processNameToOutputChannels.get(dependentProcessName).stream().filter(channelWrite -> Objects.equals(channelRead, channelWrite)).findFirst();
+
+                        if (temp.isPresent()) {
+                            dependencies.add(dependentProcessName);
+                        }
+                    });
+                });
+                map.put(processName, dependencies);
+            });
+        } catch (IOException | TokenStreamException | RecognitionException e) {
+            LOG.warn("could not parse", e);
+        }
+        return map;
+    }
+
+    //    protected Map<String, DockerParameter> getCallsToDockerMap(String mainDescriptor, String defaultContainer) {
+    //        Map<String, DockerParameter> map = new HashMap<>();
+    //        try {
+    //            List<GroovySourceAST> processList = getGroovySourceASTList(mainDescriptor, "process");
+    //            if (processList == null) {
+    //                return map;
+    //            }
+    //
+    //            for (GroovySourceAST processAST : processList) {
+    //                String processName = getProcessValue(processAST);
+    //                if (processName == null) {
+    //                    continue;
+    //                }
+    //                GroovySourceAST containerAST = getFirstAstWithKeyword(processAST, "container", false);
+    //                // A "container" directive parses as a "container" node followed by an ELIST sibling
+    //                // The first child of the ELIST contains the container name (image reference)
+    //                // https://www.nextflow.io/docs/latest/process.html#containeroptions
+    //                String containerName = ObjectUtils.firstNonNull(getText(getFirstChild(getNextSibling(containerAST))), defaultContainer);
+    //
+    //                if (containerName != null) {
+    //                    if (containerName.startsWith("$")) { // Parameterized container name
+    //                        map.put(processName, new DockerParameter(containerName, DockerImageReference.DYNAMIC));
+    //                    } else {
+    //                        map.put(processName, new DockerParameter(containerName, DockerImageReference.LITERAL));
+    //                    }
+    //                    LOG.debug("found container: " + containerName + " in process " + processName);
+    //                }
+    //            }
+    //        } catch (IOException | TokenStreamException | RecognitionException e) {
+    //            LOG.warn("could not parse", e);
+    //        }
+    //        return map;
+    //    }
+
+    private AST getNextSibling(AST ast) {
+        return (ast != null) ? ast.getNextSibling() : null;
+    }
+
+    private AST getFirstChild(AST ast) {
+        return (ast != null) ? ast.getFirstChild() : null;
+    }
+
+    private String getText(AST ast) {
+        return (ast != null) ? ast.getText() : null;
+    }
+
+    /**
+     * Looks for the first line like <code>nextflow.enable.dsl=2</code>, and returns the value, 2 in this
+     * example.
+     * @param fileContent
+     * @return
+     */
+    protected Optional<String> getDslVersion(String fileContent) {
+        //        try {
+        //            List<GroovySourceAST> assignmentsAst = getGroovySourceASTList(fileContent, "=");
+        //            if (assignmentsAst == null) {
+        //                throw new IOException("getGroovySourceASTList had a null result");
+        //            }
+        //            return assignmentsAst.stream()
+        //                .filter(equalsAst -> {
+        //                    final AST firstDotAst = equalsAst.getFirstChild();
+        //                    if (isNodeText(firstDotAst, ".")) {
+        //                        final AST secondDotAst = firstDotAst.getFirstChild();
+        //                        if (isNodeText(secondDotAst, ".") && isNodeText(secondDotAst.getNextSibling(), "dsl")) {
+        //                            final AST nextflowAst = secondDotAst.getFirstChild();
+        //                            if (isNodeText(nextflowAst, "nextflow")) {
+        //                                final AST enableAst = nextflowAst.getNextSibling();
+        //                                if (isNodeText(enableAst, "enable")) {
+        //                                    return true;
+        //                                }
+        //                            }
+        //                        }
+        //                    }
+        //                    return false;
+        //                })
+        //                .map(ast -> ast.getFirstChild().getNextSibling().getText())
+        //                .findFirst();
+        //        } catch (IOException | TokenStreamException | RecognitionException e) {
+        //            LOG.warn("could not parse", e);
+        //        }
+        return Optional.empty();
+    }
+
+    /**
+     * Calculates the DSL version for a workflow. Given a <code>configuration</code>, that is the
+     * model of nextflow.config file, and a <code>mainScript</code>, which is the main script referenced
+     * by nextflow.config, then:
+     *
+     * <ol>
+     *     <li>If the DSL is specified in the main script, that is the version</li>
+     *     <li>If the DSL is not specified in the main script, but specified in nextflow.config, that is the version</li>
+     *     <li>If it's in neither, we can't calculate the version -- it's based on on the engine version
+     *     or a environment setting</li>
+     * </ol>
+     * @param configuration
+     * @param mainScript
+     * @return
+     */
+    private Optional<String> calculateDslVersion(final Configuration configuration, final Optional<SourceFile> mainScript) {
+        return mainScript
+            .flatMap(sf -> getDslVersion(sf.getContent()))
+            .or(() -> Optional.ofNullable(configuration.getString("nextflow.enable.dsl", null)));
+    }
+
+    private boolean isNodeText(AST node, String text) {
+        return node != null && text.equals(node.getText());
+    }
+    //
+    //    @Override
+    //    public VersionTypeValidation validateWorkflowSet(Set<SourceFile> sourcefiles, String primaryDescriptorFilePath, Workflow workflow) {
+    //        Optional<SourceFile> mainDescriptor = findSourceFileByPath(sourcefiles, primaryDescriptorFilePath);
+    //        Map<String, String> validationMessageObject = new HashMap<>();
+    //        String validationMessage;
+    //        String content;
+    //        if (mainDescriptor.isPresent()) {
+    //            content = mainDescriptor.get().getContent();
+    //            if (content.contains("manifest")) {
+    //                return new VersionTypeValidation(true, Collections.emptyMap());
+    //            } else {
+    //                validationMessage = "Descriptor file '" + primaryDescriptorFilePath + "' is missing the manifest section.";
+    //            }
+    //        } else {
+    //            validationMessage = "Descriptor file '" + primaryDescriptorFilePath + "' not found.";
+    //        }
+    //        validationMessageObject.put(primaryDescriptorFilePath, validationMessage);
+    //        return new VersionTypeValidation(false, validationMessageObject);
+    //    }
+    //
+    //    @Override
+    //    public VersionTypeValidation validateToolSet(Set<SourceFile> sourcefiles, String primaryDescriptorFilePath) {
+    //        // Todo: Throw exception instead?
+    //        Map<String, String> validationMessageObject = new HashMap<>();
+    //        validationMessageObject.put(primaryDescriptorFilePath, "Nextflow does not support tools.");
+    //        return new VersionTypeValidation(true, validationMessageObject);
+    //    }
+    //
+    //    @Override
+    //    public VersionTypeValidation validateTestParameterSet(Set<SourceFile> sourceFiles) {
+    //        // Todo: Throw exception instead?
+    //        Map<String, String> validationMessageObject = new HashMap<>();
+    //        for (SourceFile sourceFile : sourceFiles) {
+    //            validationMessageObject.put(sourceFile.getPath(), "Nextflow does not support test parameter files.");
+    //        }
+    //        return new VersionTypeValidation(true, validationMessageObject);
+    //    }
+}

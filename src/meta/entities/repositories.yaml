@@ -52,3 +52,25 @@ repositories:
           <@COMMON_WHO_FIELDS 'r' />
         FROM repositories r
         ORDER BY r.url
+      operations:
+      - Insert
+      - Edit
+      - Delete
+      
+  operations:
+  - Insert:
+      type: Groovy
+      roles: [Administrator, User]
+      layout: '{"type":"modalForm"}'
+      file: operations.AddRepository.groovy
+  - Edit:
+      roles: [Administrator, User]
+      records: 1
+      layout: '{"type":"modalForm"}'
+      code: com.developmentontheedge.be5.server.operations.SilentEditOperation
+  - Delete:
+      type: Groovy
+      roles: [Administrator, User]
+      records: 2
+      layout: '{"type":"modalForm"}'
+      file: operations.RemoveRepository.groovy
