@@ -1,6 +1,0 @@
-connectionProfiles:
-  profiles:
-    test_local:
-      connectionUrl: jdbc:postgresql://localhost:5434/registry
-      username: registry
-      password: registry
