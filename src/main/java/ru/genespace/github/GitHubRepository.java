@@ -1,55 +1,5 @@
 package ru.genespace.github;
 
-import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.Strings;
-import org.apache.commons.lang3.tuple.Pair;
-import org.apache.http.HttpStatus;
-import org.kohsuke.github.GHBlob;
-import org.kohsuke.github.GHBranch;
-import org.kohsuke.github.GHCommit;
-import org.kohsuke.github.GHContent;
-import org.kohsuke.github.GHFileNotFoundException;
-import org.kohsuke.github.GHRateLimit;
-import org.kohsuke.github.GHRef;
-import org.kohsuke.github.GHRepository;
-import org.kohsuke.github.GitHub;
-import org.kohsuke.github.GitHubAbuseLimitHandler;
-import org.kohsuke.github.GitHubBuilder;
-import org.kohsuke.github.GitHubRateLimitHandler;
-import org.kohsuke.github.connector.GitHubConnectorResponse;
-import org.kohsuke.github.extras.okhttp3.ObsoleteUrlFactory;
-import org.kohsuke.github.extras.okhttp3.OkHttpGitHubConnector;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import ru.genespace.dockstore.AppTool;
-import ru.genespace.dockstore.DescriptorLanguage;
-import ru.genespace.dockstore.DescriptorLanguageSubclass;
-import ru.genespace.dockstore.Notebook;
-import ru.genespace.dockstore.SourceFile;
-import ru.genespace.dockstore.VersionTypeValidation;
-import ru.genespace.dockstore.Workflow;
-import ru.genespace.dockstore.WorkflowMode;
-import ru.genespace.dockstore.WorkflowVersion;
-import ru.genespace.dockstore.languages.LanguageHandlerFactory;
-import ru.genespace.dockstore.languages.LanguageHandlerInterface;
-import ru.genespace.dockstore.yaml.DockstoreYaml12;
-import ru.genespace.dockstore.yaml.DockstoreYamlHelper;
-import ru.genespace.dockstore.yaml.Service12;
-import ru.genespace.dockstore.yaml.Workflowish;
-import ru.genespace.dockstore.yaml.YamlAuthor;
-import ru.genespace.dockstore.yaml.YamlNotebook;
-import ru.genespace.misc.CustomLoggedException;
-
-import com.google.common.base.Joiner;
-import com.google.common.collect.Lists;
-
-import okhttp3.Cache;
-import okhttp3.OkHttpClient;
-
 import static ru.genespace.dockstore.Constants.DOCKSTORE_YML_PATH;
 import static ru.genespace.dockstore.Constants.DOCKSTORE_YML_PATHS;
 import static ru.genespace.dockstore.Constants.SKIP_COMMIT_ID;
@@ -77,12 +27,61 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.http.HttpStatus;
+import org.kohsuke.github.GHBlob;
+import org.kohsuke.github.GHBranch;
+import org.kohsuke.github.GHCommit;
+import org.kohsuke.github.GHContent;
+import org.kohsuke.github.GHFileNotFoundException;
+import org.kohsuke.github.GHRateLimit;
+import org.kohsuke.github.GHRef;
+import org.kohsuke.github.GHRepository;
+import org.kohsuke.github.GitHub;
+import org.kohsuke.github.GitHubAbuseLimitHandler;
+import org.kohsuke.github.GitHubBuilder;
+import org.kohsuke.github.GitHubRateLimitHandler;
+import org.kohsuke.github.connector.GitHubConnectorResponse;
+import org.kohsuke.github.extras.okhttp3.ObsoleteUrlFactory;
+import org.kohsuke.github.extras.okhttp3.OkHttpGitHubConnector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Joiner;
+import com.google.common.collect.Lists;
+
+import okhttp3.Cache;
+import okhttp3.OkHttpClient;
+import ru.genespace.dockstore.AppTool;
+import ru.genespace.dockstore.DescriptorLanguage;
+import ru.genespace.dockstore.DescriptorLanguageSubclass;
+import ru.genespace.dockstore.EntryType;
+import ru.genespace.dockstore.Notebook;
+import ru.genespace.dockstore.SourceFile;
+import ru.genespace.dockstore.Validation;
+import ru.genespace.dockstore.VersionTypeValidation;
+import ru.genespace.dockstore.Workflow;
+import ru.genespace.dockstore.WorkflowMode;
+import ru.genespace.dockstore.WorkflowVersion;
+import ru.genespace.dockstore.languages.LanguageHandlerFactory;
+import ru.genespace.dockstore.languages.LanguageHandlerInterface;
+import ru.genespace.dockstore.yaml.DockstoreYaml12;
+import ru.genespace.dockstore.yaml.DockstoreYamlHelper;
+import ru.genespace.dockstore.yaml.Service12;
+import ru.genespace.dockstore.yaml.Workflowish;
+import ru.genespace.dockstore.yaml.YamlNotebook;
+import ru.genespace.misc.CustomLoggedException;
+
 public class GitHubRepository
 {
 
     private final GitHub github;
     private final String githubTokenUsername;
-    String gitUsername;
+    private String gitUsername;
 
     public static final Logger LOG = LoggerFactory.getLogger( GitHubRepository.class );
     public static final long MAXIMUM_FILE_DOWNLOAD_SIZE = 10L * 1024L * 1024L;
@@ -115,19 +114,19 @@ public class GitHubRepository
     {
         initialize();
         this.githubTokenUsername = githubTokenUsername;
-
+        this.gitUsername = githubTokenUsername != null ? githubTokenUsername : "Unauthenticated";
         try
         {
-            assert ((githubTokenUsername != null && githubTokenContent != null && installationId == null)
-                    || (githubTokenUsername == null && githubTokenContent == null && installationId != null));
-            if( githubTokenUsername != null )
+            if( githubTokenUsername != null && githubTokenContent != null )
             {
                 final GitHubBuilder gitHubBuilder = getBuilder( githubTokenUsername ).withOAuthToken( githubTokenContent, githubTokenUsername );
                 this.github = gitHubBuilder.build();
             }
             else
             {
-                this.github = CacheConfigManager.getInstance().getGitHubClientFromCache( installationId );
+                //Anonymous authorization
+                final GitHubBuilder gitHubBuilder = getBuilder( githubTokenUsername );
+                this.github = gitHubBuilder.build();
             }
 
         }
@@ -195,31 +194,13 @@ public class GitHubRepository
         //TODO: fix
         OkHttpClient.Builder builder = okHttpClient.newBuilder();
         builder.eventListener( new CacheHitListener( GitHubRepository.class.getSimpleName(), cacheNamespace ) );
-        //        // namespace cache if running on circle ci
-        //        if( DockstoreWebserviceApplication.runningOnCircleCI() )
-        //        {
-        //            // namespace cache by user when testing
-        //            builder.cache( DockstoreWebserviceApplication.getCache( cacheNamespace ) );
-        //        }
-        //        else
-        //        {
-            // use general cache
-            builder.cache( getCache( null ) );
-            //        }
+        builder.cache( getCache( null ) );
         OkHttpClient build = builder.build();
         // Must set the cache max age otherwise kohsuke assumes 0 which significantly slows down our GitHub requests
         OkHttpGitHubConnector okHttp3Connector = new OkHttpGitHubConnector( build, GITHUB_MAX_CACHE_AGE_SECONDS );
         GitHubBuilder gitHubBuilder = new GitHubBuilder().withAbuseLimitHandler( new FailAbuseLimitHandler( cacheNamespace ) ).withConnector( okHttp3Connector );
-        //        if( DockstoreWebserviceApplication.runningOnCircleCI() )
-        //        {
-        //            gitHubBuilder = gitHubBuilder.withRateLimitChecker( new LiteralValue( SLEEP_AT_RATE_LIMIT_OR_BELOW ) );
-        //        }
-        //        else
-        //        {
-            gitHubBuilder = gitHubBuilder.withRateLimitHandler( new FailRateLimitHandler( cacheNamespace ) );
-        //        }
+        gitHubBuilder = gitHubBuilder.withRateLimitHandler( new FailRateLimitHandler( cacheNamespace ) );
         return gitHubBuilder;
-        //return new GitHubBuilder();
     }
 
     public static Cache getCache(String cacheNamespace)
@@ -1171,36 +1152,35 @@ public class GitHubRepository
         Optional<SourceFile> mainDescriptor = sourceFiles.stream().filter( (sourceFile -> Objects.equals( sourceFile.getPath(), mainDescriptorPath )) ).findFirst();
 
         // Validate descriptor set
-        //commented
-        //        if( mainDescriptor.isPresent() )
-        //        {
-        //            VersionTypeValidation validDescriptorSet;
-        //            if( entry.getEntryType() == EntryType.APPTOOL )
-        //            {
-        //                validDescriptorSet = LanguageHandlerFactory.getInterface( identifiedType ).validateToolSet( sourceFiles, mainDescriptorPath );
-        //            }
-        //            else
-        //            {
-        //                validDescriptorSet = LanguageHandlerFactory.getInterface( identifiedType ).validateWorkflowSet( sourceFiles, mainDescriptorPath, entry );
-        //            }
-        //            Validation descriptorValidation = new Validation( identifiedType, validDescriptorSet );
-        //            version.addOrUpdateValidation( descriptorValidation );
-        //        }
-        //        else
-        //        {
-        //            Map<String, String> validationMessage = new HashMap<>();
-        //            validationMessage.put( mainDescriptorPath, "Primary descriptor file not found." );
-        //            VersionTypeValidation noPrimaryDescriptor = new VersionTypeValidation( false, validationMessage );
-        //            Validation noPrimaryDescriptorValidation = new Validation( identifiedType, noPrimaryDescriptor );
-        //            version.addOrUpdateValidation( noPrimaryDescriptorValidation );
-        //        }
-        //
-        //        // Validate test parameter set
-        //        VersionTypeValidation validTestParameterSet = LanguageHandlerFactory.getInterface( identifiedType ).validateTestParameterSet( sourceFiles );
-        //        Validation testParameterValidation = new Validation( entry.getTestParameterType(), validTestParameterSet );
-        //        version.addOrUpdateValidation( testParameterValidation );
-        //
-        //        version.setValid( isValidVersion( version ) );
+        if( mainDescriptor.isPresent() )
+        {
+            VersionTypeValidation validDescriptorSet;
+            if( entry.getEntryType() == EntryType.APPTOOL )
+            {
+                validDescriptorSet = LanguageHandlerFactory.getInterface( identifiedType ).validateToolSet( sourceFiles, mainDescriptorPath );
+            }
+            else
+            {
+                validDescriptorSet = LanguageHandlerFactory.getInterface( identifiedType ).validateWorkflowSet( sourceFiles, mainDescriptorPath, entry );
+            }
+            Validation descriptorValidation = new Validation( identifiedType, validDescriptorSet );
+            version.addOrUpdateValidation( descriptorValidation );
+        }
+        else
+        {
+            Map<String, String> validationMessage = new HashMap<>();
+            validationMessage.put( mainDescriptorPath, "Primary descriptor file not found." );
+            VersionTypeValidation noPrimaryDescriptor = new VersionTypeValidation( false, validationMessage );
+            Validation noPrimaryDescriptorValidation = new Validation( identifiedType, noPrimaryDescriptor );
+            version.addOrUpdateValidation( noPrimaryDescriptorValidation );
+        }
+
+        // Validate test parameter set
+        VersionTypeValidation validTestParameterSet = LanguageHandlerFactory.getInterface( identifiedType ).validateTestParameterSet( sourceFiles );
+        Validation testParameterValidation = new Validation( entry.getTestParameterType(), validTestParameterSet );
+        version.addOrUpdateValidation( testParameterValidation );
+
+        version.setValid( isValidVersion( version ) );
 
         return version;
     }
@@ -1475,10 +1455,10 @@ public class GitHubRepository
         }
     }
 
-    public Notebook initializeNotebookFromGitHub(String repositoryId, String format, String language, String workflowName, GHRepository repository)
+    public Notebook initializeNotebookFromGitHub(String repositoryId, String format, String language, String workflowName)
     {
         Notebook notebook = new Notebook();
-        setWorkflowInfo( repositoryId, format, language, workflowName, notebook, repository );
+        setWorkflowInfo( repositoryId, format, language, workflowName, notebook );
         return notebook;
     }
 
@@ -1490,17 +1470,17 @@ public class GitHubRepository
      * @param workflowName Name of the workflow
      * @return Workflow
      */
-    public Workflow initializeWorkflowFromGitHub(String repositoryId, String subclass, String workflowName, GHRepository repository)
+    public Workflow initializeWorkflowFromGitHub(String repositoryId, String subclass, String workflowName)
     {
         Workflow workflow = new Workflow();
-        setWorkflowInfo( repositoryId, subclass, DescriptorLanguageSubclass.NOT_APPLICABLE.toString(), workflowName, workflow, repository );
+        setWorkflowInfo( repositoryId, subclass, DescriptorLanguageSubclass.NOT_APPLICABLE.toString(), workflowName, workflow );
         return workflow;
     }
 
-    public AppTool initializeOneStepWorkflowFromGitHub(String repositoryId, String subclass, String workflowName, GHRepository repository)
+    public AppTool initializeOneStepWorkflowFromGitHub(String repositoryId, String subclass, String workflowName)
     {
         AppTool appTool = new AppTool();
-        setWorkflowInfo( repositoryId, subclass, DescriptorLanguageSubclass.NOT_APPLICABLE.toString(), workflowName, appTool, repository );
+        setWorkflowInfo( repositoryId, subclass, DescriptorLanguageSubclass.NOT_APPLICABLE.toString(), workflowName, appTool );
         return appTool;
     }
 
@@ -1513,8 +1493,7 @@ public class GitHubRepository
      * @param workflow Workflow to update
      * @return Workflow
      */
-    private void setWorkflowInfo(final String repositoryId, final String type, final String typeSubclass, final String workflowName, final Workflow workflow,
-            final GHRepository repository)
+    private void setWorkflowInfo(final String repositoryId, final String type, final String typeSubclass, final String workflowName, final Workflow workflow)
     {
 
         // The checks/catches in the following blocks are all backups, they should not fail in normal operation.
@@ -1549,7 +1528,7 @@ public class GitHubRepository
         workflow.setDefaultWorkflowPath( DOCKSTORE_YML_PATH );
         workflow.setMode( WorkflowMode.DOCKSTORE_YML );
         //workflow.setTopicAutomatic( repository.getDescription() );
-        workflow.setGitVisibility( getGitVisibility( repository ) );
+        workflow.setGitVisibility( getGitVisibility( repositoryId ) );
         //this.setLicenseInformation( workflow, repositoryId );
 
         try
@@ -1592,7 +1571,7 @@ public class GitHubRepository
             //            }
 
             // Mark the version as valid/invalid.
-            //remoteWorkflowVersion.setValid(isValidVersion(remoteWorkflowVersion));
+            remoteWorkflowVersion.setValid( isValidVersion( remoteWorkflowVersion ) );
 
             // So we have workflowversion which is the new version, we want to update the version and associated source files
             //            WorkflowVersion existingWorkflowVersion = workflowVersionDAO.getWorkflowVersionByWorkflowIdAndVersionName(workflow.getId(), remoteWorkflowVersion.getName());
@@ -1680,6 +1659,18 @@ public class GitHubRepository
             LOG.error( message, ex );
             throw new CustomLoggedException( message );
         }
+    }
+
+    /**
+     * Checks if the given workflow version is valid based on existing validations
+     * 
+     * @param version Version to check validation
+     * @return True if valid workflow version, false otherwise
+     */
+    public boolean isValidVersion(WorkflowVersion version)
+    {
+        return version.getValidations().stream().filter( validation -> !Objects.equals( validation.getType(), DescriptorLanguage.FileType.DOCKSTORE_YML ) )
+                .allMatch( Validation::isValid );
     }
 
     private void setDefaultVersionToLatestTagIfAppropriate(boolean latestTagAsDefault, Workflow workflow, WorkflowVersion version)

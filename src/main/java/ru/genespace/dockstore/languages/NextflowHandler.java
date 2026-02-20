@@ -15,31 +15,15 @@
  */
 package ru.genespace.dockstore.languages;
 
-import com.google.common.base.CharMatcher;
-import com.google.common.base.Joiner;
+import static ru.genespace.dockstore.languages.LanguageHandlerInterface.LOG;
 
-import biouml.plugins.wdl.NextFlowRunner;
-import groovyjarjarantlr.RecognitionException;
-import groovyjarjarantlr.TokenStreamException;
-import groovyjarjarantlr.collections.AST;
-import ru.genespace.dockstore.DescriptorLanguage;
-import ru.genespace.dockstore.DescriptorLanguage.FileType;
-import ru.genespace.dockstore.SourceFile;
-import ru.genespace.dockstore.WorkflowVersion;
-import ru.genespace.github.GitHubRepository;
-import ru.genespace.misc.CustomLoggedException;
-
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StringReader;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -56,17 +40,30 @@ import java.util.stream.Stream;
 
 import org.apache.commons.configuration2.Configuration;
 import org.apache.commons.configuration2.ConfigurationConverter;
-import org.apache.commons.configuration2.INIConfiguration;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.http.HttpStatus;
 import org.codehaus.groovy.antlr.GroovySourceAST;
 import org.codehaus.groovy.antlr.parser.GroovyLexer;
 import org.codehaus.groovy.antlr.parser.GroovyRecognizer;
+
+import com.google.common.base.CharMatcher;
+
+import biouml.plugins.wdl.NextFlowRunner;
+import groovyjarjarantlr.RecognitionException;
+import groovyjarjarantlr.TokenStreamException;
+import groovyjarjarantlr.collections.AST;
+import ru.genespace.dockstore.DescriptionSource;
+import ru.genespace.dockstore.DescriptorLanguage;
+import ru.genespace.dockstore.DescriptorLanguage.FileType;
+import ru.genespace.dockstore.SourceFile;
+import ru.genespace.dockstore.Validation;
+import ru.genespace.dockstore.VersionTypeValidation;
+import ru.genespace.dockstore.Workflow;
+import ru.genespace.dockstore.WorkflowVersion;
+import ru.genespace.github.GitHubRepository;
+import ru.genespace.misc.CustomLoggedException;
 
 /**
  * This class will eventually handle support for Nextflow
@@ -84,41 +81,43 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
     @Override
     public WorkflowVersion parseWorkflowContent(String filepath, String content, Set<SourceFile> sourceFiles, WorkflowVersion version)
     {
-        // this is where we can look for things like Nextflow config files or maybe a future Dockstore.yml
-        //        try {
-        //            final Configuration configuration = NextflowUtilities.grabConfig(content);
-        //            String descriptionInProgress = null;
-        //            if (configuration.containsKey("manifest.description")) {
-        //                version.setDescriptionAndDescriptionSource(configuration.getString("manifest.description"), DescriptionSource.DESCRIPTOR);
-        //                descriptionInProgress = version.getDescription();
-        //            }
-        //            // Add authors from descriptor
-        //            if (configuration.containsKey("manifest.author")) {
-        //                String[] authors = configuration.getString("manifest.author").split(",");
-        //                for (String author : authors) {
-        //                    Author newAuthor = new Author(author.trim());
-        //                    version.addAuthor(newAuthor);
-        //                }
-        //            }
-        //            // look for extended help message from nf-core workflows when it is available
-        //            final String mainScriptPath = getMainScriptPath(configuration);
-        //            final Optional<SourceFile> potentialScript = findSourceFileByPath(sourceFiles, mainScriptPath);
-        //            if (potentialScript.isPresent()) {
-        //                String helpMessage = getHelpMessage(potentialScript.get().getContent());
-        //                // arbitrarily follow description, markdown looks funny without the line breaks
-        //                if (!StringUtils.isEmpty(helpMessage)) {
-        //                    helpMessage = "\n\n" + helpMessage;
-        //                }
-        //                String builder = Stream.of(descriptionInProgress, helpMessage).filter(s -> s != null && !s.isEmpty())
-        //                    .collect(Collectors.joining(""));
-        //                version.setDescriptionAndDescriptionSource(builder, DescriptionSource.DESCRIPTOR);
-        //            } else {
-        //                createValidationForMissingMainScript(version, filepath, mainScriptPath);
-        //            }
-        //            updateDescriptorTypeAndEngineVersion(sourceFiles, version, configuration, potentialScript);
-        //        } catch (NextflowUtilities.NextflowParsingException e) {
-        //            createValidationForGeneralFailure(version, filepath);
-        //        }
+        //this is where we can look for things like Nextflow config files or maybe a future Dockstore.yml
+        final Configuration configuration = grabConfig( content, String.valueOf( version.getId() ) );
+        String descriptionInProgress = null;
+        if( configuration.containsKey( "manifest.description" ) )
+        {
+            version.setDescriptionAndDescriptionSource( configuration.getString( "manifest.description" ), DescriptionSource.DESCRIPTOR );
+            descriptionInProgress = version.getDescription();
+        }
+        // Add authors from descriptor
+        //commented
+        //                    if (configuration.containsKey("manifest.author")) {
+        //                        String[] authors = configuration.getString("manifest.author").split(",");
+        //                        for (String author : authors) {
+        //                            Author newAuthor = new Author(author.trim());
+        //                            version.addAuthor(newAuthor);
+        //                        }
+        //                    }
+        // look for extended help message from nf-core workflows when it is available
+        final String mainScriptPath = getMainScriptPath( configuration );
+        final Optional<SourceFile> potentialScript = findSourceFileByPath( sourceFiles, mainScriptPath );
+        if( potentialScript.isPresent() )
+        {
+            String helpMessage = getHelpMessage( potentialScript.get().getContent() );
+            // arbitrarily follow description, markdown looks funny without the line breaks
+            if( !StringUtils.isEmpty( helpMessage ) )
+            {
+                helpMessage = "\n\n" + helpMessage;
+            }
+            String builder = Stream.of( descriptionInProgress, helpMessage ).filter( s -> s != null && !s.isEmpty() ).collect( Collectors.joining( "" ) );
+            version.setDescriptionAndDescriptionSource( builder, DescriptionSource.DESCRIPTOR );
+        }
+        else
+        {
+            createValidationForMissingMainScript( version, filepath, mainScriptPath );
+        }
+        updateDescriptorTypeAndEngineVersion( sourceFiles, version, configuration, potentialScript );
+        createValidationForGeneralFailure( version, filepath );
         return version;
     }
 
@@ -300,19 +299,22 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
         return importPath;
     }
 
-    //    private void createValidationForGeneralFailure(WorkflowVersion version, String filepath) {
-    //        createValidation(version, false, filepath, "Nextflow config file is malformed or missing, cannot extract metadata");
-    //    }
-    //
-    //    private void createValidationForMissingMainScript(WorkflowVersion version, String filepath, String mainScriptName) {
-    //        createValidation(version, false, filepath, String.format("Could not find main script file '%s'", mainScriptName));
-    //    }
+    private void createValidationForGeneralFailure(WorkflowVersion version, String filepath)
+    {
+        createValidation( version, false, filepath, "Nextflow config file is malformed or missing, cannot extract metadata" );
+    }
 
-    //    private void createValidation(WorkflowVersion version, boolean valid, String filepath, String message) {
-    //        Map<String, String> validationMessageObject = new HashMap<>();
-    //        validationMessageObject.put(filepath, message);
-    //        version.addOrUpdateValidation(new Validation(DescriptorLanguage.FileType.NEXTFLOW_CONFIG, valid, validationMessageObject));
-    //    }
+    private void createValidationForMissingMainScript(WorkflowVersion version, String filepath, String mainScriptName)
+    {
+        createValidation( version, false, filepath, String.format( "Could not find main script file '%s'", mainScriptName ) );
+    }
+
+    private void createValidation(WorkflowVersion version, boolean valid, String filepath, String message)
+    {
+        Map<String, String> validationMessageObject = new HashMap<>();
+        validationMessageObject.put( filepath, message );
+        version.addOrUpdateValidation( new Validation( DescriptorLanguage.FileType.NEXTFLOW_CONFIG, valid, validationMessageObject ) );
+    }
 
     private void handleNextflowImports(String repositoryId, WorkflowVersion version, GitHubRepository sourceCodeRepoInterface,
         Map<String, SourceFile> imports, List<String> strings, String lib) {
@@ -751,6 +753,7 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
      * @param fileContent
      * @return
      */
+    //??????????
     protected Optional<String> getDslVersion(String fileContent) {
         //        try {
         //            List<GroovySourceAST> assignmentsAst = getGroovySourceASTList(fileContent, "=");
@@ -806,42 +809,52 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
     private boolean isNodeText(AST node, String text) {
         return node != null && text.equals(node.getText());
     }
-    //
-    //    @Override
-    //    public VersionTypeValidation validateWorkflowSet(Set<SourceFile> sourcefiles, String primaryDescriptorFilePath, Workflow workflow) {
-    //        Optional<SourceFile> mainDescriptor = findSourceFileByPath(sourcefiles, primaryDescriptorFilePath);
-    //        Map<String, String> validationMessageObject = new HashMap<>();
-    //        String validationMessage;
-    //        String content;
-    //        if (mainDescriptor.isPresent()) {
-    //            content = mainDescriptor.get().getContent();
-    //            if (content.contains("manifest")) {
-    //                return new VersionTypeValidation(true, Collections.emptyMap());
-    //            } else {
-    //                validationMessage = "Descriptor file '" + primaryDescriptorFilePath + "' is missing the manifest section.";
-    //            }
-    //        } else {
-    //            validationMessage = "Descriptor file '" + primaryDescriptorFilePath + "' not found.";
-    //        }
-    //        validationMessageObject.put(primaryDescriptorFilePath, validationMessage);
-    //        return new VersionTypeValidation(false, validationMessageObject);
-    //    }
-    //
-    //    @Override
-    //    public VersionTypeValidation validateToolSet(Set<SourceFile> sourcefiles, String primaryDescriptorFilePath) {
-    //        // Todo: Throw exception instead?
-    //        Map<String, String> validationMessageObject = new HashMap<>();
-    //        validationMessageObject.put(primaryDescriptorFilePath, "Nextflow does not support tools.");
-    //        return new VersionTypeValidation(true, validationMessageObject);
-    //    }
-    //
-    //    @Override
-    //    public VersionTypeValidation validateTestParameterSet(Set<SourceFile> sourceFiles) {
-    //        // Todo: Throw exception instead?
-    //        Map<String, String> validationMessageObject = new HashMap<>();
-    //        for (SourceFile sourceFile : sourceFiles) {
-    //            validationMessageObject.put(sourceFile.getPath(), "Nextflow does not support test parameter files.");
-    //        }
-    //        return new VersionTypeValidation(true, validationMessageObject);
-    //    }
+
+    @Override
+    public VersionTypeValidation validateWorkflowSet(Set<SourceFile> sourcefiles, String primaryDescriptorFilePath, Workflow workflow)
+    {
+        Optional<SourceFile> mainDescriptor = findSourceFileByPath( sourcefiles, primaryDescriptorFilePath );
+        Map<String, String> validationMessageObject = new HashMap<>();
+        String validationMessage;
+        String content;
+        if( mainDescriptor.isPresent() )
+        {
+            content = mainDescriptor.get().getContent();
+            if( content.contains( "manifest" ) )
+            {
+                return new VersionTypeValidation( true, Collections.emptyMap() );
+            }
+            else
+            {
+                validationMessage = "Descriptor file '" + primaryDescriptorFilePath + "' is missing the manifest section.";
+            }
+        }
+        else
+        {
+            validationMessage = "Descriptor file '" + primaryDescriptorFilePath + "' not found.";
+        }
+        validationMessageObject.put( primaryDescriptorFilePath, validationMessage );
+        return new VersionTypeValidation( false, validationMessageObject );
+    }
+
+    @Override
+    public VersionTypeValidation validateToolSet(Set<SourceFile> sourcefiles, String primaryDescriptorFilePath)
+    {
+        // Todo: Throw exception instead?
+        Map<String, String> validationMessageObject = new HashMap<>();
+        validationMessageObject.put( primaryDescriptorFilePath, "Nextflow does not support tools." );
+        return new VersionTypeValidation( true, validationMessageObject );
+    }
+
+    @Override
+    public VersionTypeValidation validateTestParameterSet(Set<SourceFile> sourceFiles)
+    {
+        // Todo: Throw exception instead?
+        Map<String, String> validationMessageObject = new HashMap<>();
+        for ( SourceFile sourceFile : sourceFiles )
+        {
+            validationMessageObject.put( sourceFile.getPath(), "Nextflow does not support test parameter files." );
+        }
+        return new VersionTypeValidation( true, validationMessageObject );
+    }
 }

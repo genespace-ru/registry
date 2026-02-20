@@ -141,6 +141,14 @@
           <artifactId>wdl</artifactId>
           <version>[1.0.1,)</version>
         </dependency>
+        
+        <!-- Source: https://mvnrepository.com/artifact/com.github.zafarkhaja/java-semver -->
+    <dependency>
+        <groupId>com.github.zafarkhaja</groupId>
+        <artifactId>java-semver</artifactId>
+        <version>0.10.2</version>
+        <scope>compile</scope>
+    </dependency>
       
   </dependencies>
 

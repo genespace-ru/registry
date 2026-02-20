@@ -11,8 +11,10 @@ public class TestGitHubManager
 {
     public static void main(String... args) throws Exception
     {
-        GitHubManager manager = new GitHubManager();
-        Map<String, Workflow> workflows = manager.processRepository( "dockstore/bcc2020-training" );
+        String gitUsername = "ryabova.anna@gmail.com";
+        String gitToken = "token_here";
+        GitHubManager manager = new GitHubManager( gitUsername, gitToken );
+        Map<String, Workflow> workflows = manager.processRepository( "dockstore/bcc2020-training", 3 );
         for ( Entry<String, Workflow> e : workflows.entrySet() )
         {
             System.out.println( e.getKey() + " " + toStringWorkflow( e.getValue() ) );

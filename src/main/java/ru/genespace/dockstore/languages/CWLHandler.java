@@ -15,20 +15,6 @@
  */
 package ru.genespace.dockstore.languages;
 
-import com.google.common.base.Strings;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-import com.google.gson.Gson;
-import com.google.gson.JsonParseException;
-
-import ru.genespace.dockstore.DescriptorLanguage;
-import ru.genespace.dockstore.ParsedInformation;
-import ru.genespace.dockstore.SourceFile;
-import ru.genespace.dockstore.WorkflowVersion;
-import ru.genespace.github.GitHubManager;
-import ru.genespace.github.GitHubRepository;
-import ru.genespace.misc.CustomLoggedException;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -45,17 +31,28 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.MutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.validator.routines.UrlValidator;
-import org.apache.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
+
+import com.google.common.collect.Sets;
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
+
+import ru.genespace.dockstore.DescriptorLanguage;
+import ru.genespace.dockstore.ParsedInformation;
+import ru.genespace.dockstore.SourceFile;
+import ru.genespace.dockstore.VersionTypeValidation;
+import ru.genespace.dockstore.Workflow;
+import ru.genespace.dockstore.WorkflowVersion;
+import ru.genespace.github.GitHubRepository;
+import ru.genespace.misc.CustomLoggedException;
 
 /**
  * This class will eventually handle support for understanding CWL
@@ -241,37 +238,41 @@ public class CWLHandler extends AbstractLanguageHandler implements LanguageHandl
     }
 
     private String newestVersion(Set<String> versions) {
-        return null;
-        //return sortVersionsDescending(versions).stream().findFirst().orElse(null);
+        return sortVersionsDescending( versions ).stream().findFirst().orElse( null );
     }
 
-    //    /**
-    //     * Sort the specified set of versions in descending release date order, from
-    //     * "latest" to "earliest".
-    //     */
-    //    private List<String> sortVersionsDescending(Set<String> versions) {
-    //        return versions.stream().sorted(Comparator.comparing(this::convertVersionToSortKey).reversed()).collect(Collectors.toList());
-    //    }
-    //
-    //    /**
-    //     * Create a sort key for the specified version string.
-    //     * The version string is expected to be in the form 'vD.D', where D is a decimal number.
-    //     * If it is not, a value representing release '0.0.0' is returned, allowing the sort to proceed.
-    //     */
-    //    private com.github.zafarkhaja.semver.Version convertVersionToSortKey(String version) {
-    //        final com.github.zafarkhaja.semver.Version errorValue = com.github.zafarkhaja.semver.Version.valueOf("0.0.0");
-    //        if (!version.startsWith("v")) {
-    //            LOG.error("Version '{}' does not begin with 'v'", version);
-    //            return errorValue;
-    //        }
-    //        final String release = version.substring(1) + ".0";
-    //        try {
-    //            return com.github.zafarkhaja.semver.Version.valueOf(release);
-    //        } catch (IllegalArgumentException | UnexpectedCharacterException | LexerException | UnexpectedTokenException ex) {
-    //            LOG.error("Exception parsing release number of version '{}'", version, ex);
-    //            return errorValue;
-    //        }
-    //    }
+    /**
+     * Sort the specified set of versions in descending release date order, from "latest" to "earliest".
+     */
+    private List<String> sortVersionsDescending(Set<String> versions)
+    {
+        return versions.stream().sorted( Comparator.comparing( this::convertVersionToSortKey ).reversed() ).collect( Collectors.toList() );
+    }
+
+    /**
+     * Create a sort key for the specified version string. The version string is expected to be in the form 'vD.D',
+     * where D is a decimal number. If it is not, a value representing release '0.0.0' is returned, allowing the sort to
+     * proceed.
+     */
+    private com.github.zafarkhaja.semver.Version convertVersionToSortKey(String version)
+    {
+        final com.github.zafarkhaja.semver.Version errorValue = com.github.zafarkhaja.semver.Version.valueOf( "0.0.0" );
+        if( !version.startsWith( "v" ) )
+        {
+            LOG.error( "Version '{}' does not begin with 'v'", version );
+            return errorValue;
+        }
+        final String release = version.substring( 1 ) + ".0";
+        try
+        {
+            return com.github.zafarkhaja.semver.Version.valueOf( release );
+        }
+        catch (Exception ex)
+        {
+            LOG.error( "Exception parsing release number of version '{}'", version, ex );
+            return errorValue;
+        }
+    }
 
     /**
      * Look at the map of metadata and populate entry with an author and email
@@ -908,85 +909,85 @@ public class CWLHandler extends AbstractLanguageHandler implements LanguageHandl
     //        });
     //        return sum;
     //    }
-    //
-    //    /**
-    //     * Checks that the CWL file is the correct version
-    //     * @param content
-    //     * @return true if file is valid CWL version, false otherwise
-    //     */
-    //    private boolean isValidCwl(String content) {
-    //        try {
-    //            Map<String, Object> mapping = parseAsMap(content);
-    //            final Object cwlVersion = mapping.get("cwlVersion");
-    //
-    //            if (cwlVersion != null) {
-    //                final boolean startsWith = cwlVersion.toString().startsWith(CWLHandler.CWL_VERSION_PREFIX);
-    //                if (!startsWith) {
-    //                    LOG.error("detected invalid version: " + cwlVersion.toString());
-    //                }
-    //                return startsWith;
-    //            }
-    //        } catch (ClassCastException | YAMLException | JsonParseException e) {
-    //            return false;
-    //        }
-    //        return false;
-    //    }
-    //
-    //    private VersionTypeValidation validateProcessSet(Set<SourceFile> sourceFiles, String primaryDescriptorFilePath,
-    //        String processType, Set<String> processClasses, String oppositeType, Set<String> oppositeClasses) {
-    //
-    //        List<DescriptorLanguage.FileType> fileTypes = new ArrayList<>(Collections.singletonList(DescriptorLanguage.FileType.DOCKSTORE_CWL));
-    //        Set<SourceFile> filteredSourcefiles = filterSourcefiles(sourceFiles, fileTypes);
-    //        Optional<SourceFile> mainDescriptor = filteredSourcefiles.stream().filter((sourceFile -> Objects.equals(sourceFile.getPath(), primaryDescriptorFilePath))).findFirst();
-    //
-    //        String validationMessage = null;
-    //
-    //        if (mainDescriptor.isPresent()) {
-    //            String content = mainDescriptor.get().getContent();
-    //            if (StringUtils.isBlank(content)) {
-    //                validationMessage = "Primary descriptor is empty.";
-    //            } else {
-    //                try {
-    //                    Map<String, Object> parsed = findMainProcess(parseAsMap(content));
-    //                    Object klass = parsed.get("class");
-    //                    if (!processClasses.contains(klass)) {
-    //                        validationMessage = String.format("A CWL %s requires %s.", processType, processClasses.stream().map(s -> String.format("'class: %s'", s)).collect(Collectors.joining(" or ")));
-    //                        if (oppositeClasses.contains(klass)) {
-    //                            validationMessage += String.format(" This file contains 'class: %s'. Did you mean to register a %s?", klass, oppositeType);
-    //                        }
-    //                    } else if (!this.isValidCwl(content)) {
-    //                        validationMessage = "Invalid CWL version.";
-    //                    }
-    //                } catch (YAMLException | JsonParseException | ClassCastException e) {
-    //                    LOG.error("An unsafe or malformed YAML was attempted to be parsed", e);
-    //                    validationMessage = "CWL file is malformed or missing, cannot extract metadata: " + e.getMessage();
-    //                }
-    //            }
-    //        } else {
-    //            validationMessage = "Primary CWL descriptor is not present.";
-    //        }
-    //
-    //        if (validationMessage == null) {
-    //            return new VersionTypeValidation(true, Collections.emptyMap());
-    //        } else {
-    //            return new VersionTypeValidation(false, Map.of(primaryDescriptorFilePath, validationMessage));
-    //        }
-    //    }
-    //
-    //    @Override
-    //    public VersionTypeValidation validateWorkflowSet(Set<SourceFile> sourceFiles, String primaryDescriptorFilePath, io.dockstore.webservice.core.Workflow workflow) {
-    //        return validateProcessSet(sourceFiles, primaryDescriptorFilePath, "workflow", Set.of(WORKFLOW), "tool", Set.of(COMMAND_LINE_TOOL, EXPRESSION_TOOL));
-    //    }
-    //
-    //    @Override
-    //    public VersionTypeValidation validateToolSet(Set<SourceFile> sourceFiles, String primaryDescriptorFilePath) {
-    //        return validateProcessSet(sourceFiles, primaryDescriptorFilePath, "tool", Set.of(COMMAND_LINE_TOOL, EXPRESSION_TOOL), "workflow", Set.of(WORKFLOW));
-    //    }
-    //
-    //    @Override
-    //    public VersionTypeValidation validateTestParameterSet(Set<SourceFile> sourceFiles) {
-    //        return checkValidJsonAndYamlFiles(sourceFiles, DescriptorLanguage.FileType.CWL_TEST_JSON);
-    //    }
+    
+        /**
+         * Checks that the CWL file is the correct version
+         * @param content
+         * @return true if file is valid CWL version, false otherwise
+         */
+        private boolean isValidCwl(String content) {
+            try {
+                Map<String, Object> mapping = parseAsMap(content);
+                final Object cwlVersion = mapping.get("cwlVersion");
+    
+                if (cwlVersion != null) {
+                    final boolean startsWith = cwlVersion.toString().startsWith(CWLHandler.CWL_VERSION_PREFIX);
+                    if (!startsWith) {
+                        LOG.error("detected invalid version: " + cwlVersion.toString());
+                    }
+                    return startsWith;
+                }
+            } catch (ClassCastException | YAMLException | JsonParseException e) {
+                return false;
+            }
+            return false;
+        }
+    
+        private VersionTypeValidation validateProcessSet(Set<SourceFile> sourceFiles, String primaryDescriptorFilePath,
+            String processType, Set<String> processClasses, String oppositeType, Set<String> oppositeClasses) {
+    
+            List<DescriptorLanguage.FileType> fileTypes = new ArrayList<>(Collections.singletonList(DescriptorLanguage.FileType.DOCKSTORE_CWL));
+            Set<SourceFile> filteredSourcefiles = filterSourcefiles(sourceFiles, fileTypes);
+            Optional<SourceFile> mainDescriptor = filteredSourcefiles.stream().filter((sourceFile -> Objects.equals(sourceFile.getPath(), primaryDescriptorFilePath))).findFirst();
+    
+            String validationMessage = null;
+    
+            if (mainDescriptor.isPresent()) {
+                String content = mainDescriptor.get().getContent();
+                if (StringUtils.isBlank(content)) {
+                    validationMessage = "Primary descriptor is empty.";
+                } else {
+                    try {
+                        Map<String, Object> parsed = findMainProcess(parseAsMap(content));
+                        Object klass = parsed.get("class");
+                        if (!processClasses.contains(klass)) {
+                            validationMessage = String.format("A CWL %s requires %s.", processType, processClasses.stream().map(s -> String.format("'class: %s'", s)).collect(Collectors.joining(" or ")));
+                            if (oppositeClasses.contains(klass)) {
+                                validationMessage += String.format(" This file contains 'class: %s'. Did you mean to register a %s?", klass, oppositeType);
+                            }
+                        } else if (!this.isValidCwl(content)) {
+                            validationMessage = "Invalid CWL version.";
+                        }
+                    } catch (YAMLException | JsonParseException | ClassCastException e) {
+                        LOG.error("An unsafe or malformed YAML was attempted to be parsed", e);
+                        validationMessage = "CWL file is malformed or missing, cannot extract metadata: " + e.getMessage();
+                    }
+                }
+            } else {
+                validationMessage = "Primary CWL descriptor is not present.";
+            }
+    
+            if (validationMessage == null) {
+                return new VersionTypeValidation(true, Collections.emptyMap());
+            } else {
+                return new VersionTypeValidation(false, Map.of(primaryDescriptorFilePath, validationMessage));
+            }
+        }
+    
+        @Override
+        public VersionTypeValidation validateWorkflowSet(Set<SourceFile> sourceFiles, String primaryDescriptorFilePath, Workflow workflow) {
+            return validateProcessSet(sourceFiles, primaryDescriptorFilePath, "workflow", Set.of(WORKFLOW), "tool", Set.of(COMMAND_LINE_TOOL, EXPRESSION_TOOL));
+        }
+    
+        @Override
+        public VersionTypeValidation validateToolSet(Set<SourceFile> sourceFiles, String primaryDescriptorFilePath) {
+            return validateProcessSet(sourceFiles, primaryDescriptorFilePath, "tool", Set.of(COMMAND_LINE_TOOL, EXPRESSION_TOOL), "workflow", Set.of(WORKFLOW));
+        }
+    
+        @Override
+        public VersionTypeValidation validateTestParameterSet(Set<SourceFile> sourceFiles) {
+            return checkValidJsonAndYamlFiles(sourceFiles, DescriptorLanguage.FileType.CWL_TEST_JSON);
+        }
     //
     //    @Override
     //    public Optional<Boolean> isOpenData(final WorkflowVersion workflowVersion, final CheckUrlInterface checkUrlInterface) {

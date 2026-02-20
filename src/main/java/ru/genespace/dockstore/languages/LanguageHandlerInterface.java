@@ -15,8 +15,10 @@
  */
 package ru.genespace.dockstore.languages;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -25,12 +27,18 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
+import org.yaml.snakeyaml.error.YAMLException;
 
 import com.google.gson.Gson;
 
 import ru.genespace.dockstore.DescriptorLanguage;
 import ru.genespace.dockstore.ParsedInformation;
 import ru.genespace.dockstore.SourceFile;
+import ru.genespace.dockstore.VersionTypeValidation;
+import ru.genespace.dockstore.Workflow;
 import ru.genespace.dockstore.WorkflowVersion;
 import ru.genespace.github.GitHubRepository;
 
@@ -70,29 +78,32 @@ public interface LanguageHandlerInterface {
     //     * @return
     //     */
     WorkflowVersion parseWorkflowContent(String filepath, String content, Set<SourceFile> sourceFiles, WorkflowVersion version);
-    //
-    //    /**
-    //     * Validates a workflow set for the workflow described by with primaryDescriptorFilePath
-    //     * @param sourcefiles Set of sourcefiles
-    //     * @param primaryDescriptorFilePath Primary descriptor path
-    //     * @return Is a valid workflow set, error message
-    //     */
-    //    VersionTypeValidation validateWorkflowSet(Set<SourceFile> sourcefiles, String primaryDescriptorFilePath, Workflow workflow);
-    //
-    //    /**
-    //     * Validates a tool set for the workflow described by with primaryDescriptorFilePath
-    //     * @param sourcefiles Set of sourcefiles
-    //     * @param primaryDescriptorFilePath Primary descriptor path
-    //     * @return Is a valid tool set, error message
-    //     */
-    //    VersionTypeValidation validateToolSet(Set<SourceFile> sourcefiles, String primaryDescriptorFilePath);
-    //
-    //    /**
-    //     * Validates a test parameter set
-    //     * @param sourceFiles Set of sourcefiles
-    //     * @return Are all test parameter files valid, collection of error messages
-    //     */
-    //    VersionTypeValidation validateTestParameterSet(Set<SourceFile> sourceFiles);
+
+    /**
+     * Validates a workflow set for the workflow described by with primaryDescriptorFilePath
+     * 
+     * @param sourcefiles Set of sourcefiles
+     * @param primaryDescriptorFilePath Primary descriptor path
+     * @return Is a valid workflow set, error message
+     */
+    VersionTypeValidation validateWorkflowSet(Set<SourceFile> sourcefiles, String primaryDescriptorFilePath, Workflow workflow);
+
+    /**
+     * Validates a tool set for the workflow described by with primaryDescriptorFilePath
+     * 
+     * @param sourcefiles Set of sourcefiles
+     * @param primaryDescriptorFilePath Primary descriptor path
+     * @return Is a valid tool set, error message
+     */
+    VersionTypeValidation validateToolSet(Set<SourceFile> sourcefiles, String primaryDescriptorFilePath);
+
+    /**
+     * Validates a test parameter set
+     * 
+     * @param sourceFiles Set of sourcefiles
+     * @return Are all test parameter files valid, collection of error messages
+     */
+    VersionTypeValidation validateTestParameterSet(Set<SourceFile> sourceFiles);
 
     /**
      * Parse a descriptor file and return a recursive mapping of its imports
@@ -122,49 +133,57 @@ public interface LanguageHandlerInterface {
             .collect(Collectors.toMap(SourceFile::getAbsolutePath, Function.identity()));
     }
 
-    //    /**
-    //     * Processes a descriptor and its associated secondary descriptors to either return the tools that a workflow has or a DAG representation
-    //     * of a workflow
-    //     *
-    //     * @param mainDescriptorPath   the path of the main descriptor
-    //     * @param mainDescriptor       the content of the main descriptor
-    //     * @param secondarySourceFiles the content of the secondary descriptors in a map, looks like file paths -> content
-    //     * @param type                 tools or DAG
-    //     * @param dao                  used to retrieve information on tools
-    //     * @return either a DAG or some form of a list of tools for a workflow
-    //     */
-    //    Optional<String> getContent(String mainDescriptorPath, String mainDescriptor, Set<SourceFile> secondarySourceFiles, Type type, ToolDAO dao);
-    //
-    //    /**
-    //     * Checks that the test parameter files are valid JSON or YAML
-    //     * Note: If even one is invalid, return invalid. Also merges all validation messages into one.
-    //     * @param sourcefiles Set of sourcefiles
-    //     * @param fileType Test parameter file type
-    //     * @return Pair of isValid and validationMessage
-    //     */
-    //    default VersionTypeValidation checkValidJsonAndYamlFiles(Set<SourceFile> sourcefiles, DescriptorLanguage.FileType fileType) {
-    //        boolean isValid = true;
-    //        Map<String, String> validationMessageObject = new HashMap<>();
-    //        for (SourceFile sourcefile : sourcefiles) {
-    //            if (Objects.equals(sourcefile.getType(), fileType)) {
-    //                Yaml yaml = new Yaml(new SafeConstructor(new LoaderOptions()));
-    //                try {
-    //                    yaml.load(sourcefile.getContent());
-    //                } catch (YAMLException e) {
-    //                    LOG.error("There was an exception validating sourcefile", e);
-    //                    validationMessageObject.put(sourcefile.getPath(), e.getMessage());
-    //                    isValid = false;
-    //                }
-    //            }
-    //        }
-    //        return new VersionTypeValidation(isValid, validationMessageObject);
+    /**
+     * Processes a descriptor and its associated secondary descriptors to either return the tools that a workflow has or
+     * a DAG representation of a workflow
+     *
+     * @param mainDescriptorPath the path of the main descriptor
+     * @param mainDescriptor the content of the main descriptor
+     * @param secondarySourceFiles the content of the secondary descriptors in a map, looks like file paths -> content
+     * @param type tools or DAG
+     * @param dao used to retrieve information on tools
+     * @return either a DAG or some form of a list of tools for a workflow
+     */
+    //Optional<String> getContent(String mainDescriptorPath, String mainDescriptor, Set<SourceFile> secondarySourceFiles, Type type, ToolDAO dao);
+
+    /**
+     * Checks that the test parameter files are valid JSON or YAML Note: If even one is invalid, return invalid. Also
+     * merges all validation messages into one.
+     * 
+     * @param sourcefiles Set of sourcefiles
+     * @param fileType Test parameter file type
+     * @return Pair of isValid and validationMessage
+     */
+    default VersionTypeValidation checkValidJsonAndYamlFiles(Set<SourceFile> sourcefiles, DescriptorLanguage.FileType fileType)
+    {
+        boolean isValid = true;
+        Map<String, String> validationMessageObject = new HashMap<>();
+        for ( SourceFile sourcefile : sourcefiles )
+        {
+            if( Objects.equals( sourcefile.getType(), fileType ) )
+            {
+                Yaml yaml = new Yaml( new SafeConstructor( new LoaderOptions() ) );
+                try
+                {
+                    yaml.load( sourcefile.getContent() );
+                }
+                catch (YAMLException e)
+                {
+                    LOG.error( "There was an exception validating sourcefile", e );
+                    validationMessageObject.put( sourcefile.getPath(), e.getMessage() );
+                    isValid = false;
+                }
+            }
+        }
+        return new VersionTypeValidation( isValid, validationMessageObject );
+    }
+
+    //    default String getCleanDAG(String mainDescriptorPath, String mainDescriptor, Set<SourceFile> secondarySourceFiles, Type type, ToolDAO dao)
+    //    {
+    //        Optional<String> content = getContent( mainDescriptorPath, mainDescriptor, secondarySourceFiles, type, dao );
+    //        return content.map( DAGHelper::cleanDAG ).orElse( null );
     //    }
-    //
-    //    default String getCleanDAG(String mainDescriptorPath, String mainDescriptor, Set<SourceFile> secondarySourceFiles, Type type, ToolDAO dao) {
-    //        Optional<String> content = getContent(mainDescriptorPath, mainDescriptor, secondarySourceFiles, type, dao);
-    //        return content.map(DAGHelper::cleanDAG).orElse(null);
-    //    }
-    //
+
     default ParsedInformation getParsedInformation(WorkflowVersion version, DescriptorLanguage descriptorLanguage)
     {
         //            Optional<ParsedInformation> foundParsedInformation = version.getVersionMetadata().getParsedInformationSet().stream()
@@ -178,18 +197,18 @@ public interface LanguageHandlerInterface {
         return parsedInformation;
         //}
     }
-    //
-    //    /**
-    //     * Removes any sourcefiles of some file types from a set
-    //     * @param sourcefiles
-    //     * @param fileTypes
-    //     * @return Filtered sourcefile set
-    //     */
-    //    default Set<SourceFile> filterSourcefiles(Set<SourceFile> sourcefiles, List<DescriptorLanguage.FileType> fileTypes) {
-    //        return sourcefiles.stream()
-    //                .filter(sourcefile -> fileTypes.contains(sourcefile.getType()))
-    //                .collect(Collectors.toSet());
-    //    }
+
+    /**
+     * Removes any sourcefiles of some file types from a set
+     * 
+     * @param sourcefiles
+     * @param fileTypes
+     * @return Filtered sourcefile set
+     */
+    default Set<SourceFile> filterSourcefiles(Set<SourceFile> sourcefiles, List<DescriptorLanguage.FileType> fileTypes)
+    {
+        return sourcefiles.stream().filter( sourcefile -> fileTypes.contains( sourcefile.getType() ) ).collect( Collectors.toSet() );
+    }
     //
     //    /**
     //     * This method will setup the nodes (nodePairs) and edges (stepToDependencies) into Cytoscape compatible JSON

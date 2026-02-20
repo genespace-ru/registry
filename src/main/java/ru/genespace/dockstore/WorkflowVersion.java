@@ -5,6 +5,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -51,9 +52,17 @@ public class WorkflowVersion implements Comparable<WorkflowVersion>
     //A custom readme for the version, if applicable.
     private String readMePath;
 
+    private VersionMetadata versionMetadata = new VersionMetadata();
+
+    private final SortedSet<Validation> validations;
+
+    //Implementation specific ID for the tag in this web service
+    protected long id;
+
     public WorkflowVersion()
     {
         sourceFiles = new TreeSet<>();
+        validations = new TreeSet<>();
     }
 
     public int hashCode()
@@ -69,6 +78,16 @@ public class WorkflowVersion implements Comparable<WorkflowVersion>
     public void setName(String name)
     {
         this.name = name;
+    }
+
+    public long getId()
+    {
+        return id;
+    }
+
+    public void setId(long id)
+    {
+        this.id = id;
     }
 
     public String getReference()
@@ -99,6 +118,11 @@ public class WorkflowVersion implements Comparable<WorkflowVersion>
     public Date getDate()
     {
         return this.getLastModified();
+    }
+
+    public String getDescription()
+    {
+        return this.getVersionMetadata().description;
     }
 
     public String getWorkingDirectory()
@@ -199,21 +223,21 @@ public class WorkflowVersion implements Comparable<WorkflowVersion>
     {
         List<String> languageVersions = sourceFilesWithDescriptorTypeVersions.stream().map( SourceFile::getMetadata ).map( SourceFileMetadata::getTypeVersion )
                 .filter( Objects::nonNull ).distinct().collect( Collectors.toList() );
-        setDescriptorTypeVersions( languageVersions );
+        getVersionMetadata().setDescriptorTypeVersions( languageVersions );
     }
 
     //The language versions for the version's descriptor files")
-    private List<String> descriptorTypeVersions = new ArrayList<>();
-
-    public List<String> getDescriptorTypeVersions()
-    {
-        return descriptorTypeVersions;
-    }
-
-    public void setDescriptorTypeVersions(final List<String> descriptorTypeVersions)
-    {
-        this.descriptorTypeVersions = descriptorTypeVersions;
-    }
+    //    private List<String> descriptorTypeVersions = new ArrayList<>();
+    //
+    //    public List<String> getDescriptorTypeVersions()
+    //    {
+    //        return descriptorTypeVersions;
+    //    }
+    //
+    //    public void setDescriptorTypeVersions(final List<String> descriptorTypeVersions)
+    //    {
+    //        this.descriptorTypeVersions = descriptorTypeVersions;
+    //    }
 
     @Override
     public int compareTo(WorkflowVersion that)
@@ -259,6 +283,53 @@ public class WorkflowVersion implements Comparable<WorkflowVersion>
     public void setReadMePath(String readMePath)
     {
         this.readMePath = readMePath;
+    }
+
+    public SortedSet<Validation> getValidations()
+    {
+        return validations;
+    }
+
+    public void addOrUpdateValidation(Validation versionValidation)
+    {
+        Optional<Validation> matchingValidation = getValidations().stream()
+                .filter( versionValidation1 -> Objects.equals( versionValidation.getType(), versionValidation1.getType() ) ).findFirst();
+        if( matchingValidation.isPresent() )
+        {
+            matchingValidation.get().setMessage( versionValidation.getMessage() );
+            matchingValidation.get().setValid( versionValidation.isValid() );
+        }
+        else
+        {
+            validations.add( versionValidation );
+        }
+    }
+
+    public VersionMetadata getVersionMetadata()
+    {
+        if( versionMetadata == null )
+        {
+            versionMetadata = new VersionMetadata();
+            versionMetadata.setId( this.id );
+        }
+        return versionMetadata;
+    }
+
+    /**
+     * Setting each property individually because we don't want the id
+     * 
+     * @param newVersionMetadata Newest metadata from source control
+     */
+    public void setVersionMetadata(VersionMetadata newVersionMetadata)
+    {
+        this.setDescriptionAndDescriptionSource( newVersionMetadata.description, newVersionMetadata.descriptionSource );
+        this.getVersionMetadata().setParsedInformationSet( newVersionMetadata.parsedInformationSet );
+    }
+
+    public void setDescriptionAndDescriptionSource(String newDescription, DescriptionSource newDescriptionSource)
+    {
+        this.getVersionMetadata().description = newDescription;
+        this.getVersionMetadata().descriptionSource = newDescriptionSource;
     }
 
     public enum ReferenceType
