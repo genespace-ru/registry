@@ -52,18 +52,14 @@ public class GitHubManager
     //create list of Workflows (map to our Resources). Workflow contains list of WorkflowVersion (map to our Versions) 
     public Map<String, Workflow> processRepository(String repositoryId) throws DockstoreYamlException
     {
-<<<<<<< HEAD
-        //TODO: pass user name and token
-        String gitUsername = "ryabova.anna@gmail.com";
-        String gitToken = "token_here";
-=======
         return processRepository( repositoryId, Integer.MAX_VALUE );
     }
+
     //Process repository, get tags and branches, read .dockstore.yml for all branches, 
     //create list of Workflows (map to our Resources). Workflow contains list of WorkflowVersion (map to our Versions) 
+    //Stop when workflowNumberLimit of processed is reached (need for testing)
     public Map<String, Workflow> processRepository(String repositoryId, int workflowNumberLimit) throws DockstoreYamlException
     {
->>>>>>> 57c0a8a (Validation issues and refactoring)
         GitHubRepository repo = new GitHubRepository( gitUsername, gitToken, null );
         GHRepository repository = repo.getRepository( repositoryId );
         Map<String, GitReferenceInfo> references = new HashMap<>();
