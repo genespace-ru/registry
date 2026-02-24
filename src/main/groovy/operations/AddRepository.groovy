@@ -22,6 +22,7 @@ import ru.genespace.dockstore.yaml.DockstoreYamlHelper
 import ru.genespace.dockstore.yaml.YamlWorkflow
 import ru.genespace.github.GitHubManager
 import ru.genespace.github.GitHubRepository
+import ru.genespace.dockstore.DescriptorLanguage
 
 class AddRepository extends GOperationSupport {
     Map<String, Object> presets
@@ -50,8 +51,8 @@ class AddRepository extends GOperationSupport {
             url  : repositoryPath,
             doi : doi
         ]
-        
-	//TODO: possibility to change token/user by interface
+
+        //TODO: possibility to change token/user by interface
         //def user = database.users.getBy([ user_name: userInfo.userName ])
         def githubUser = db.getString( "SELECT setting_value FROM systemsettings WHERE section_name='registry' AND setting_name='github_user'" )
         def githubToken = db.getString( "SELECT setting_value FROM systemsettings WHERE section_name='registry' AND setting_name='github_token'" )
@@ -86,7 +87,10 @@ class AddRepository extends GOperationSupport {
                 primaryDescriptorPath = version.getWorkflowPath()
             }
             //TODO: topic, info
-            def wflID = database.resources << [repository: repoID, name: workflow.getWorkflowName(), type: "workflow", language: lang, primaryDescriptorPath: primaryDescriptorPath ]
+            def wflName = workflow.getWorkflowName()
+            if(wflName == null && workflow.getDescriptorType().equals(DescriptorLanguage.NEXTFLOW ))
+                wflName = "main.nf"
+            def wflID = database.resources << [repository: repoID, name: wflName, type: "workflow", language: lang, primaryDescriptorPath: primaryDescriptorPath ]
             for(WorkflowVersion version: versions) {
                 /* Versions
                  repository: repositories.ID
