@@ -9,18 +9,21 @@ import com.developmentontheedge.beans.DynamicPropertySetSupport
 public class RemoveRepository extends GOperationSupport {
     Map<String, Object> presets
 
-    //    @Inject
-    //    private RepositoryManager repo;
-
     @Override
     public void invoke(Object parameters) throws Exception {
         DPS params = parameters as DPS ?: new DynamicPropertySetSupport()
 
-        //String repoPath = repo.getRepositoryPath();
         for ( int i=0 ; i < context.records.length ; ++i ) {
             def repo = database.getEntity( getInfo().getEntity().name ).get( context.records[i] )
-            //TODO: delete repository
+            def reID = repo.$ID
             database.repositories.removeBy([ID: repo.$ID])
+
+            def versions = db.list("SELECT ID FROM versions WHERE repository=${repo.$ID}" )
+            for(def ver: versions) {
+                database.resource2versions.removeBy([version:ver.$ID])
+            }
+            database.resources.removeBy([repository: repo.$ID])
+            database.versions.removeBy([repository: repo.$ID])
         }
         setResult(OperationResult.finished())
     }
