@@ -1527,8 +1527,17 @@ public class GitHubRepository
         workflow.setLastUpdated( new Date() );
         workflow.setDefaultWorkflowPath( DOCKSTORE_YML_PATH );
         workflow.setMode( WorkflowMode.DOCKSTORE_YML );
-        //workflow.setTopicAutomatic( repository.getDescription() );
-        workflow.setGitVisibility( getGitVisibility( repositoryId ) );
+        GHRepository repository;
+        try
+        {
+            repository = github.getRepository( repositoryId );
+            workflow.setTopic( repository.getDescription() );
+            workflow.setGitVisibility( repository.isPrivate() ? GitVisibility.PRIVATE : GitVisibility.PUBLIC );
+        }
+        catch (IOException e)
+        {
+        }
+
         //this.setLicenseInformation( workflow, repositoryId );
 
         try

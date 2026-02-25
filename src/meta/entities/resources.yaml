@@ -109,6 +109,7 @@ resources:
              r.type AS "Type",
              r.language AS "Descriptor type",
              r2v.primaryDescriptorPath AS "filepath___",
+             r.topic AS "topic___",
              TO_CHAR(r.creationDate___,     'DD.MM.YYYY, HH24:MI') AS "creationdate___",
              TO_CHAR(r.modificationDate___, 'DD.MM.YYYY, HH24:MI') AS "modificationdate___",
              r.whoInserted___,

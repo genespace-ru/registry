@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 
+import org.apache.commons.lang3.StringUtils;
 import org.kohsuke.github.GHFileNotFoundException;
 import org.kohsuke.github.GHRef;
 import org.kohsuke.github.GHRepository;
@@ -58,6 +59,7 @@ public class GitHubManager
     //Process repository, get tags and branches, read .dockstore.yml for all branches, 
     //create list of Workflows (map to our Resources). Workflow contains list of WorkflowVersion (map to our Versions) 
     //Stop when workflowNumberLimit of processed is reached (need for testing)
+    //repositoryId - string containing organization and github repo name separated with slash, for example "genespace-workflows/general" 
     public Map<String, Workflow> processRepository(String repositoryId, int workflowNumberLimit) throws DockstoreYamlException
     {
         GitHubRepository repo = new GitHubRepository( gitUsername, gitToken, null );
@@ -123,6 +125,8 @@ public class GitHubManager
                         else
                         {
                             workflow = repo.initializeWorkflowFromGitHub( repositoryId, yamlWorkflow.getSubclass(), wfName );
+                            if( StringUtils.isNotBlank( yamlWorkflow.getTopic() ) )
+                                workflow.setTopic( yamlWorkflow.getTopic() );
                             workflows.put( dockstoreWorkflowPath, workflow );
                             if( workflows.size() >= workflowNumberLimit )
                                 break;

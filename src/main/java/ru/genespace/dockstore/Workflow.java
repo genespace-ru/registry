@@ -42,6 +42,9 @@ public class Workflow
 
     private GitVisibility gitVisibility;
 
+    //Short description of the workflow
+    private String topic;
+
     public Workflow()
     {
         workflowVersions = new TreeSet<>();
@@ -117,6 +120,16 @@ public class Workflow
     public WorkflowVersion getActualDefaultVersion()
     {
         return this.actualDefaultVersion;
+    }
+
+    public String getTopic()
+    {
+        return topic;
+    }
+
+    public void setTopic(String topic)
+    {
+        this.topic = topic;
     }
 
     public boolean addWorkflowVersion(WorkflowVersion workflowVersion)

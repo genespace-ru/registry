@@ -77,11 +77,11 @@ class AddRepository extends GOperationSupport {
 
             Set<WorkflowVersion> versions = workflow.getWorkflowVersions()
             //TODO: readMePath is also version-specific
-            //TODO: topic, info
+            //TODO: info
             def wflName = workflow.getWorkflowName()
             if(wflName == null && workflow.getDescriptorType().equals(DescriptorLanguage.NEXTFLOW ))
                 wflName = "main.nf"
-            def wflID = database.resources << [repository: repoID, name: wflName, type: "workflow", language: lang]
+            def wflID = database.resources << [repository: repoID, name: wflName, type: "workflow", language: lang, topic: workflow.getTopic()]
             for(WorkflowVersion version: versions) {
                 /* Versions
                  repository: repositories.ID

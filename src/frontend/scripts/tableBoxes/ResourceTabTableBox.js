@@ -18,6 +18,8 @@ class ResourceTabTableBox extends Component
             <br/>
             <Field  title='Файл'            value={resource.filepath___.value}/>
             <br/>
+            <Field  title='Описание'            value={resource.topic___.value}/>
+            <br/>
             <Field  title='Создано'             value={resource.creationdate___.value}/>
             <Field  title='Создал'              value={resource.whoinserted___.value}/>
             <FieldNotEmpty  title='Изменено'    value={resource.whomodified___.value}/>
