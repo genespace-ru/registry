@@ -47,7 +47,7 @@ repositories:
       code: |-
         SELECT
           r.ID AS "ID",
-          CONCAT('<a href="', r.url, '" target="_blank">', SUBSTRING(r.url, 9), '</a>') AS "Repository",
+          CONCAT('<a href="https://github.com/', r.url, '" target="_blank">', r.url, '</a>') AS "Repository",
           CONCAT('<a href="https://', r.doi, '" target="_blank">', r.doi, '</a>') AS "DOI",
           <@COMMON_WHO_FIELDS 'r' />
         FROM repositories r

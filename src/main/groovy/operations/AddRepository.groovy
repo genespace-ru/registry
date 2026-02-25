@@ -31,7 +31,7 @@ class AddRepository extends GOperationSupport {
     Object getParameters(Map<String, Object> presetValues) throws Exception {
         presets = presetValues
         params.repositoryPath = [value: presetValues.get("repositoryPath" ),
-            DISPLAY_NAME: "Repository name (must be in format github://owner/repo)", TYPE: String]
+            DISPLAY_NAME: "Repository name (must be in format 'owner/repo' or 'https://github.com/owner/repo')", TYPE: String]
         params.doi = [value: presetValues.get("doi" ),
             DISPLAY_NAME: "DOI", TYPE: String, CAN_BE_NULL: true]
 
@@ -43,12 +43,15 @@ class AddRepository extends GOperationSupport {
 
         def repositoryPath = params.$repositoryPath
         def repositoryId = repositoryPath
-        if(repositoryPath.startsWith("github://")) {
+        def httpsGitHubPath = "https://github.com/"
+        if(repositoryPath.startsWith("github://"))
             repositoryId = repositoryPath.substring(9)
-        }
+        else if(repositoryPath.startsWith(httpsGitHubPath))
+            repositoryId = repositoryPath.substring(httpsGitHubPath.length())
+
         def doi = params.$doi
         def repoID = database.repositories << [
-            url  : repositoryPath,
+            url : repositoryId,
             doi : doi
         ]
 
@@ -66,31 +69,19 @@ class AddRepository extends GOperationSupport {
              name:
              type: ENUM(tool, workflow, notebook)
              language: ENUM(CWL, WDL, NFL)
-             primaryDescriptorPath: The absolute path to the primary descriptor file in the Git repository. 
-             - For CWL, the primary descriptor is a .cwl file.
-             - For WDL, the primary descriptor is a .wdl file.
-             - Nextflow differs from these as the primary descriptor is a nextflow.config file.
              readMePath: An optional path to a resource-specific readme in the Git repository.
              topic: An optional short text description of the resource.
              info: JSONB Other structured information from dockstore.yml*/
             Workflow workflow = e.getValue()
             String lang = workflow.getDescriptorType().getShortName()
-            def primaryDescriptorPath = ""
+
             Set<WorkflowVersion> versions = workflow.getWorkflowVersions()
-            if(versions.isEmpty()) {
-            }
-            else {
-                WorkflowVersion version = versions.iterator().next()
-                //TODO: propertry primaryDescriptorPath is not correct: workflow path is version-specific, may be changed in different versions
-                //Now correct path is stores only inside workflow version! The workflow itself does not contain full path
-                //TODO: readMePath is also version-specific
-                primaryDescriptorPath = version.getWorkflowPath()
-            }
+            //TODO: readMePath is also version-specific
             //TODO: topic, info
             def wflName = workflow.getWorkflowName()
             if(wflName == null && workflow.getDescriptorType().equals(DescriptorLanguage.NEXTFLOW ))
                 wflName = "main.nf"
-            def wflID = database.resources << [repository: repoID, name: wflName, type: "workflow", language: lang, primaryDescriptorPath: primaryDescriptorPath ]
+            def wflID = database.resources << [repository: repoID, name: wflName, type: "workflow", language: lang]
             for(WorkflowVersion version: versions) {
                 /* Versions
                  repository: repositories.ID
@@ -113,13 +104,18 @@ class AddRepository extends GOperationSupport {
                  resource: resources.ID
                  version: versions.ID
                  language: language version used by corresponding resource
+                 primaryDescriptorPath: The absolute path to the primary descriptor file in the Git repository. 
+                 - For CWL, the primary descriptor is a .cwl file.
+                 - For WDL, the primary descriptor is a .wdl file.
+                 - Nextflow differs from these as the primary descriptor is a nextflow.config file.
                  valid: ENUM(yes, no)  a version is valid if the descriptor file(s) have been successfully validated         
                  doi: DOI for this resource of this version of Git repository
                  snapshot: ENUM(yes, no) indicates that this version of the resource is snapshot     
                  */
                 //TODO: doi, language, snapshot
+                def primaryDescriptorPath = version.getWorkflowPath()
                 def valid = version.isValid() ? 'yes' : 'no'
-                database.resource2versions << [resource: wflID, version:versionID, valid: version.isValid() ? 'yes' : 'no' ]
+                database.resource2versions << [resource: wflID, version:versionID, valid: version.isValid() ? 'yes' : 'no', primaryDescriptorPath: primaryDescriptorPath ]
             }
         }
         setResult(OperationResult.finished())

@@ -26,13 +26,6 @@ resources:
     - language:
         type: ENUM(CWL, WDL, NFL)
         doc: resource language
-    - primaryDescriptorPath:
-        type: TEXT
-        doc: |
-          The absolute path to the primary descriptor file in the Git repository.
-           - For CWL, the primary descriptor is a .cwl file.
-           - For WDL, the primary descriptor is a .wdl file.
-           - Nextflow differs from these as the primary descriptor is a nextflow.config file.
     - readMePath:
         type: TEXT
         canBeNull: true
@@ -66,7 +59,7 @@ resources:
       code: |-
         SELECT
           rs.ID,
-          CONCAT(SUBSTRING(rs.url, 9), '/', rs.name, '(', rs.type, ')')
+          CONCAT(rp.url, '/', rs.name, '(', rs.type, ')')
         FROM resources rs
         JOIN repositories rp ON rp.ID = rs.repository
         ORDER BY 2
@@ -77,8 +70,10 @@ resources:
       code: |-
         SELECT
           rs.ID AS "___ID",
-          CONCAT('<a href="', rp.url, '" target="_blank">', SUBSTRING(rp.url, 9), '</a>') AS "Repository",
+          rs.ID AS "___resID",
+          CONCAT('<a href="https://github.com/', rp.url, '" target="_blank">', rp.url, '</a>') AS "Repository",
           rs.name AS "Name",
+          '<link table="resources" queryName="Resource card" using="___resID" columns="ID" />' AS ";Name",
           rs.type AS "Type;<quick visible='true' />",
           rs.language AS "Language;<quick visible='true' />",
           rs.topic AS "Description;<quick visible='true' />",
@@ -87,3 +82,42 @@ resources:
         FROM resources rs
         JOIN repositories rp ON rp.ID = rs.repository
         ORDER BY 1
+        
+  - Resource card:
+      roles: '@AllRolesExceptGuest'
+      type: 1D_unknown
+      layout: '{"tableBox":"resourceCard", "mode":"named", "hideTitle":"true"}'
+      invisible: true
+      code: |-
+            SELECT
+              r.ID AS "ID",
+              CONCAT( 'Карточка ресурса: ', r.name ) AS "PageTitle"
+            FROM resources r
+            WHERE 1 = 1
+            <if parameter="ID">
+                AND r.ID = <parameter:ID/>
+            </if>
+  - ResourceTab:
+      roles: '@AllRolesExceptGuest'
+      invisible: true
+      type: 1D_unknown
+      layout: '{"tableBox":"resourceTab", "mode":"named", "hideTitle":"true"}'
+      code: |-
+        SELECT r.ID AS "ID",
+            'Workflow: ' || r.name AS "PageTitle",
+             r.name AS "Name",
+             r.type AS "Type",
+             r.language AS "Descriptor type",
+             r2v.primaryDescriptorPath AS "filepath___",
+             TO_CHAR(r.creationDate___,     'DD.MM.YYYY, HH24:MI') AS "creationdate___",
+             TO_CHAR(r.modificationDate___, 'DD.MM.YYYY, HH24:MI') AS "modificationdate___",
+             r.whoInserted___,
+             r.whoModified___
+        FROM resources r
+        JOIN repositories rp ON rp.ID = r.repository
+        JOIN resource2versions r2v ON r2v.resource = r.ID
+          WHERE (1=1)
+          <if parameter="___resID">
+              AND r.ID = <parameter:___resID/>
+          </if>
+     

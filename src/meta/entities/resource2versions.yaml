@@ -21,6 +21,13 @@ resource2versions:
         type: VARCHAR(20)
         canBeNull: true
         doc: language version used by corresponding resource
+    - primaryDescriptorPath:
+            type: TEXT
+            doc: |
+              The absolute path to the primary descriptor file in the Git repository.
+               - For CWL, the primary descriptor is a .cwl file.
+               - For WDL, the primary descriptor is a .wdl file.
+               - Nextflow differs from these as the primary descriptor is a nextflow.config file.
     - valid:
         type: ENUM(yes, no) 
         canBeNull: true
