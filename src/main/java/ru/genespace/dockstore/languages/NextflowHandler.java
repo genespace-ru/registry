@@ -50,7 +50,7 @@ import org.codehaus.groovy.antlr.parser.GroovyRecognizer;
 
 import com.google.common.base.CharMatcher;
 
-import biouml.plugins.wdl.NextFlowRunner;
+import biouml.plugins.wdl.nextflow.NextFlowRunner;
 import groovyjarjarantlr.RecognitionException;
 import groovyjarjarantlr.TokenStreamException;
 import groovyjarjarantlr.collections.AST;
