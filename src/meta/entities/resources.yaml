@@ -86,11 +86,17 @@ resources:
       code: |-
             SELECT
               r.ID AS "ID",
-              CONCAT( 'Карточка ресурса: ', r.name ) AS "PageTitle"
+              r2v.version AS "verver",
+              CONCAT( 'Карточка ресурса: ', r.name, ':', ver.name ) AS "PageTitle"
             FROM resources r
+            JOIN resource2versions r2v ON r2v.resource = r.ID
+            JOIN versions ver ON r2v.version = ver.ID
             WHERE 1 = 1
             <if parameter="ID">
                 AND r.ID = <parameter:ID/>
+            </if>
+            <if parameter="___verID">
+              AND r2v.version = <parameter:___verID/>
             </if>
   - ResourceTab:
       roles: '@AllRolesExceptGuest'
@@ -100,7 +106,7 @@ resources:
       code: |-
         SELECT r.ID AS "ID",
             'Workflow: ' || r.name AS "PageTitle",
-             r.name AS "Name",
+             CONCAT(r.name, ':', ver.name) AS "Name",
              r.type AS "Type",
              r.language AS "Descriptor type",
              r2v.primaryDescriptorPath AS "filepath___",
@@ -119,5 +125,8 @@ resources:
           WHERE (1=1)
           <if parameter="___resID">
               AND r.ID = <parameter:___resID/>
+          </if>
+          <if parameter="___verID">
+              AND r2v.version = <parameter:___verID/>
           </if>
      

@@ -10,9 +10,9 @@ const ResourceCardTableBox = ({ value }) => {
   }, [title]);
 
   const steps = [
+    { title: "Версии", url: "#!table/versions/ForResourceCard/___resID=" + resource.ID.value  +"/___verID=" + resource.verver.value},
     { title: "Сценарий",   url: "#!table/resources/ResourceTab/___resID=" + resource.ID.value },
     { title: "Запуск", url: "#!table/resources/ToDo/___resID=" + resource.ID.value },
-    { title: "Версии", url: "#!table/resources/ToDo/___resID=" + resource.ID.value },
     { title: "Файлы", url: "#!table/resources/ToDo/___resID=" + resource.ID.value },
     { title: "Инструменты", url: "#!table/resources/ToDo/___resID=" + resource.ID.value },
     { title: "DAG", url: "#!table/resources/ToDo/___resID=" + resource.ID.value },
