@@ -26,11 +26,6 @@ resources:
     - language:
         type: ENUM(CWL, WDL, NFL)
         doc: resource language
-    - readMePath:
-        type: TEXT
-        canBeNull: true
-        doc: |
-          An optional path to a resource-specific readme in the Git repository. 
     - topic:
         type: VARCHAR(150)
         canBeNull: true
@@ -110,6 +105,9 @@ resources:
              r.language AS "Descriptor type",
              r2v.primaryDescriptorPath AS "filepath___",
              r.topic AS "topic___",
+             rp.url AS "repository___",
+             r2v.readMePath AS "readme___",
+             ver.name AS "version___",
              TO_CHAR(r.creationDate___,     'DD.MM.YYYY, HH24:MI') AS "creationdate___",
              TO_CHAR(r.modificationDate___, 'DD.MM.YYYY, HH24:MI') AS "modificationdate___",
              r.whoInserted___,
@@ -117,6 +115,7 @@ resources:
         FROM resources r
         JOIN repositories rp ON rp.ID = r.repository
         JOIN resource2versions r2v ON r2v.resource = r.ID
+        JOIN versions ver ON r2v.version = ver.ID
           WHERE (1=1)
           <if parameter="___resID">
               AND r.ID = <parameter:___resID/>

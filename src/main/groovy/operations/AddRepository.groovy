@@ -76,7 +76,6 @@ class AddRepository extends GOperationSupport {
             String lang = workflow.getDescriptorType().getShortName()
 
             Set<WorkflowVersion> versions = workflow.getWorkflowVersions()
-            //TODO: readMePath is also version-specific
             //TODO: info
             def wflName = workflow.getWorkflowName()
             if(wflName == null && workflow.getDescriptorType().equals(DescriptorLanguage.NEXTFLOW ))
@@ -108,14 +107,16 @@ class AddRepository extends GOperationSupport {
                  - For CWL, the primary descriptor is a .cwl file.
                  - For WDL, the primary descriptor is a .wdl file.
                  - Nextflow differs from these as the primary descriptor is a nextflow.config file.
+                 readMePath: An optional path to a resource-specific readme in the Git repository. If not specified, gneeric github repo README.md will be used
                  valid: ENUM(yes, no)  a version is valid if the descriptor file(s) have been successfully validated         
                  doi: DOI for this resource of this version of Git repository
                  snapshot: ENUM(yes, no) indicates that this version of the resource is snapshot     
                  */
                 //TODO: doi, language, snapshot
                 def primaryDescriptorPath = version.getWorkflowPath()
+                def readmePath = version.getReadMePath()
                 def valid = version.isValid() ? 'yes' : 'no'
-                database.resource2versions << [resource: wflID, version:versionID, valid: version.isValid() ? 'yes' : 'no', primaryDescriptorPath: primaryDescriptorPath ]
+                database.resource2versions << [resource: wflID, version:versionID, valid: version.isValid() ? 'yes' : 'no', primaryDescriptorPath: primaryDescriptorPath, readMePath: readmePath ]
             }
         }
         setResult(OperationResult.finished())

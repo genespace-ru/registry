@@ -22,12 +22,17 @@ resource2versions:
         canBeNull: true
         doc: language version used by corresponding resource
     - primaryDescriptorPath:
-            type: TEXT
-            doc: |
-              The absolute path to the primary descriptor file in the Git repository.
-               - For CWL, the primary descriptor is a .cwl file.
-               - For WDL, the primary descriptor is a .wdl file.
-               - Nextflow differs from these as the primary descriptor is a nextflow.config file.
+        type: TEXT
+        doc: |
+          The absolute path to the primary descriptor file in the Git repository.
+           - For CWL, the primary descriptor is a .cwl file.
+           - For WDL, the primary descriptor is a .wdl file.
+           - Nextflow differs from these as the primary descriptor is a nextflow.config file.
+    - readMePath:
+        type: TEXT
+        canBeNull: true
+        doc: |
+         An optional path to a resource-specific readme in the Git repository. 
     - valid:
         type: ENUM(yes, no) 
         canBeNull: true

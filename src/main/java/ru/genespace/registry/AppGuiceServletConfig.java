@@ -12,6 +12,7 @@ import com.google.inject.Guice;
 import com.google.inject.Injector;
 
 import ru.genespace.github.GitHubModule;
+import ru.genespace.webserver.WebserverApiModule;
 
 import static com.developmentontheedge.be5.modules.monitoring.Metrics.METRIC_REGISTRY;
 
@@ -35,6 +36,7 @@ public class AppGuiceServletConfig extends Be5ServletListener
             install(new TemplateModule());
             install(new MetricsModule());
             install( new GitHubModule() );
+            install( new WebserverApiModule() );
 
             final JmxReporter jmxReporter = JmxReporter.forRegistry(METRIC_REGISTRY).build();
             jmxReporter.start();

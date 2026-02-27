@@ -456,7 +456,7 @@ public class GitHubRepository
      * @return metadata describing the type of file and its decoded content
      * @throws IOException
      */
-    private Pair<GHContent, String> getContentAndMetadataForFileName(String fileName, String reference, GHRepository repo, boolean submoduleRedirected) throws IOException
+    public Pair<GHContent, String> getContentAndMetadataForFileName(String fileName, String reference, GHRepository repo, boolean submoduleRedirected) throws IOException
     {
         // retrieval of directory content is cached as opposed to retrieving individual files
         String fullPathNoEndSeparator = FilenameUtils.getFullPathNoEndSeparator( fileName );
@@ -1582,58 +1582,10 @@ public class GitHubRepository
             // Mark the version as valid/invalid.
             remoteWorkflowVersion.setValid( isValidVersion( remoteWorkflowVersion ) );
 
-            // So we have workflowversion which is the new version, we want to update the version and associated source files
-            //            WorkflowVersion existingWorkflowVersion = workflowVersionDAO.getWorkflowVersionByWorkflowIdAndVersionName(workflow.getId(), remoteWorkflowVersion.getName());
-            //            WorkflowVersion updatedWorkflowVersion;
-            //            // Update existing source files, add new source files, remove deleted sourcefiles, clear json for dag and tool table
-            //            if (existingWorkflowVersion != null) {
-            //                // Only update workflow if it's not frozen
-            //                if (!existingWorkflowVersion.isFrozen()) {
-            //                    // Copy over workflow version level information.
-            //                    existingWorkflowVersion.setWorkflowPath(remoteWorkflowVersion.getWorkflowPath());
-            //                    existingWorkflowVersion.setLastModified(remoteWorkflowVersion.getLastModified());
-            //                    existingWorkflowVersion.setLegacyVersion(remoteWorkflowVersion.isLegacyVersion());
-            //                    existingWorkflowVersion.setAliases(remoteWorkflowVersion.getAliases());
-            //                    existingWorkflowVersion.setCommitID(remoteWorkflowVersion.getCommitID());
-            //                    existingWorkflowVersion.setDagJson(null);
-            //                    existingWorkflowVersion.setToolTableJson(null);
-            //                    existingWorkflowVersion.setReferenceType(remoteWorkflowVersion.getReferenceType());
-            //                    existingWorkflowVersion.setValid(remoteWorkflowVersion.isValid());
-            //                    existingWorkflowVersion.setAuthors(remoteWorkflowVersion.getAuthors());
-            //                    existingWorkflowVersion.setOrcidAuthors(remoteWorkflowVersion.getOrcidAuthors());
-            //                    existingWorkflowVersion.setKernelImagePath(remoteWorkflowVersion.getKernelImagePath());
-            //                    existingWorkflowVersion.setReadMePath(remoteWorkflowVersion.getReadMePath());
-            //                    existingWorkflowVersion.setDescriptionAndDescriptionSource(remoteWorkflowVersion.getDescription(), remoteWorkflowVersion.getDescriptionSource());
-            //                    // this kinda sucks but needs to be updated with workflow metadata too
-            //                    existingWorkflowVersion.getVersionMetadata().setEngineVersions(remoteWorkflowVersion.getVersionMetadata().getEngineVersions());
-            //                    existingWorkflowVersion.getVersionMetadata().setDescriptorTypeVersions(remoteWorkflowVersion.getVersionMetadata().getDescriptorTypeVersions());
-            //                    existingWorkflowVersion.getVersionMetadata().setParsedInformationSet(remoteWorkflowVersion.getVersionMetadata().getParsedInformationSet());
-            //                    existingWorkflowVersion.getVersionMetadata().setPublicAccessibleTestParameterFile(remoteWorkflowVersion.getVersionMetadata().getPublicAccessibleTestParameterFile());
-            //
-            //                    updateDBVersionSourceFilesWithRemoteVersionSourceFiles(existingWorkflowVersion, remoteWorkflowVersion,
-            //                            workflow.getDescriptorType());
-            //                }
-            //                updatedWorkflowVersion = existingWorkflowVersion;
-            //            } else {
-            //                if (checkUrlInterface != null) {
-            //                    publicAccessibleUrls(remoteWorkflowVersion, checkUrlInterface, workflow.getDescriptorType());
-            //                }
+
             workflow.addWorkflowVersion( remoteWorkflowVersion );
             WorkflowVersion updatedWorkflowVersion = remoteWorkflowVersion;
-            //}
 
-            //            if (workflow.getLastModified() == null || (updatedWorkflowVersion.getLastModified() != null && workflow.getLastModifiedDate().before(updatedWorkflowVersion.getLastModified()))) {
-            //                workflow.setLastModified(updatedWorkflowVersion.getLastModified());
-            //            }
-
-            // Check the version to see if it exceeds any limits.
-            //LimitHelper.checkVersion(updatedWorkflowVersion);
-
-            // Update verification information.
-            //updatedWorkflowVersion.updateVerified();
-
-            // Update file formats for the version and then the entry.
-            // TODO: We were not adding file formats to .dockstore.yml versions before, so this only handles new/updated versions. Need to add a way to update all .dockstore.yml versions in a workflow
             //???FileFormatHelper.updateFileFormats(workflow, Set.of(updatedWorkflowVersion), fileFormatDAO, false);
 
             // If this version corresponds to the latest tag, make it the default version, if appropriate.
@@ -1644,20 +1596,6 @@ public class GitHubRepository
 
             // Log that we've successfully added the version.
             LOG.info( "Version " + remoteWorkflowVersion.getName() + " has been added to workflow " + workflow.getWorkflowPath() + "." );
-
-            // Update index if default version was updated
-            // verified and verified platforms are the only versions-level properties unrelated to default version that affect the index but GitHub Apps do not update it
-            //            if (workflow.getActualDefaultVersion() != null && updatedWorkflowVersion.getName() != null && workflow.getActualDefaultVersion().getName().equals(updatedWorkflowVersion.getName())) {
-            //                workflow.syncMetadataWithDefault();
-            //                PublicStateManager.getInstance().handleIndexUpdate(workflow, StateManagerMode.UPDATE);
-            //            }
-            //
-            //            Instant endTime = Instant.now();
-            //            long timeElasped = Duration.between(startTime, endTime).toSeconds();
-            //            if (LOG.isInfoEnabled()) {
-            //                LOG.info(
-            //                    "Processing .dockstore.yml workflow version {} for repo: {} took {} seconds", Utilities.cleanForLogging(gitReference), Utilities.cleanForLogging(repository), timeElasped);
-            //            }
 
             return updatedWorkflowVersion;
 
@@ -1822,6 +1760,7 @@ public class GitHubRepository
         // Create version with sourcefiles and validate
         return setupWorkflowVersionsHelper( workflow, ref, Optional.of( workflow ), existingDefaults, ghRepository, dockstoreYml, Optional.empty() );
     }
+
 
     /**
      * Determines the visibility of a GitHub repo.

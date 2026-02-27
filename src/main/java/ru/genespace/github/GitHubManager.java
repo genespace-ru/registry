@@ -3,6 +3,7 @@ package ru.genespace.github;
 import static ru.genespace.dockstore.Constants.DOCKSTORE_YML_PATH;
 
 import java.io.IOException;
+import java.net.URL;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -41,11 +42,13 @@ public class GitHubManager
 
     private String gitUsername;
     private String gitToken;
+    private GitHubRepository repo = null;
 
     public GitHubManager(String gitUsername, String gitToken)
     {
         this.gitUsername = gitUsername;
         this.gitToken = gitToken;
+        repo = new GitHubRepository( gitUsername, gitToken, null );
 
     }
 
@@ -62,7 +65,6 @@ public class GitHubManager
     //repositoryId - string containing organization and github repo name separated with slash, for example "genespace-workflows/general" 
     public Map<String, Workflow> processRepository(String repositoryId, int workflowNumberLimit) throws DockstoreYamlException
     {
-        GitHubRepository repo = new GitHubRepository( gitUsername, gitToken, null );
         GHRepository repository = repo.getRepository( repositoryId );
         Map<String, GitReferenceInfo> references = new HashMap<>();
         try
@@ -127,11 +129,21 @@ public class GitHubManager
                             workflow = repo.initializeWorkflowFromGitHub( repositoryId, yamlWorkflow.getSubclass(), wfName );
                             if( StringUtils.isNotBlank( yamlWorkflow.getTopic() ) )
                                 workflow.setTopic( yamlWorkflow.getTopic() );
+
                             workflows.put( dockstoreWorkflowPath, workflow );
                             if( workflows.size() >= workflowNumberLimit )
                                 break;
                         }
                         WorkflowVersion version = repo.addDockstoreYmlVersionToWorkflow( repositoryId, referenceStr, file, workflow, true );
+                        if( yamlWorkflow.getReadMePath() != null )
+                        {
+                            version.setReadMePath( yamlWorkflow.getReadMePath() );
+                        }
+                        else
+                        {
+                            //default readme path of github repository
+                            version.setReadMePath( "/README.md" );
+                        }
                         version.setName( branchName );
                     }
                     if( workflows.size() >= workflowNumberLimit )
@@ -225,5 +237,29 @@ public class GitHubManager
         Map<String, Workflow> workflows = new HashMap<>();
         workflows.put( dockstoreWorkflowPath, workflow );
         return workflows;
+    }
+
+    /**
+     * Get file from github repository
+     * 
+     * @param repositoryId repository name in format organization/repo like 'genespace-workflows/snv-calling'
+     * @param reference tag or branch name
+     * @param fileName absolute path to the file in repository
+     * @return file content as string
+     */
+
+    public String getFileContent(String repositoryId, String reference, String fileName)
+    {
+        GHRepository repository = repo.getRepository( repositoryId );
+
+        String result = repo.readFileFromRepo( fileName, reference, repository );
+        return result;
+
+    }
+
+    public URL getRepositoryURL(String repositoryId)
+    {
+        GHRepository repository = repo.getRepository( repositoryId );
+        return repository.getHtmlUrl();
     }
 }
