@@ -57,10 +57,13 @@ import com.google.common.collect.Lists;
 import okhttp3.Cache;
 import okhttp3.OkHttpClient;
 import ru.genespace.dockstore.AppTool;
+import ru.genespace.dockstore.Author;
 import ru.genespace.dockstore.DescriptorLanguage;
 import ru.genespace.dockstore.DescriptorLanguageSubclass;
 import ru.genespace.dockstore.EntryType;
+import ru.genespace.dockstore.Image;
 import ru.genespace.dockstore.Notebook;
+import ru.genespace.dockstore.OrcidAuthor;
 import ru.genespace.dockstore.SourceFile;
 import ru.genespace.dockstore.Validation;
 import ru.genespace.dockstore.VersionTypeValidation;
@@ -73,6 +76,7 @@ import ru.genespace.dockstore.yaml.DockstoreYaml12;
 import ru.genespace.dockstore.yaml.DockstoreYamlHelper;
 import ru.genespace.dockstore.yaml.Service12;
 import ru.genespace.dockstore.yaml.Workflowish;
+import ru.genespace.dockstore.yaml.YamlAuthor;
 import ru.genespace.dockstore.yaml.YamlNotebook;
 import ru.genespace.misc.CustomLoggedException;
 
@@ -1564,9 +1568,10 @@ public class GitHubRepository
         throw new CustomLoggedException( message );
     }
 
-    public WorkflowVersion addDockstoreYmlVersionToWorkflow(String repository, String gitReference, SourceFile dockstoreYml, Workflow workflow, boolean latestTagAsDefault)
+    public WorkflowVersion addDockstoreYmlVersionToWorkflow(String repository, String gitReference, SourceFile dockstoreYml, Workflow workflow, boolean latestTagAsDefault,
+            List<YamlAuthor> yamlAuthors)
     {
-        Instant startTime = Instant.now();
+        LanguageHandlerInterface languageHandler = LanguageHandlerFactory.getInterface( workflow.getDescriptorType().getFileType() );
         try
         {
             // Create version and pull relevant files
@@ -1575,37 +1580,124 @@ public class GitHubRepository
             // Update the version metadata of the remoteWorkflowVersion. This will also set authors found in the descriptor.
             updateVersionMetadata( remoteWorkflowVersion.getWorkflowPath(), remoteWorkflowVersion, workflow.getDescriptorType(), repository );
             // Set .dockstore.yml authors if they exist, which will override the descriptor authors that were set by updateVersionMetadata.
-            //            if (!yamlAuthors.isEmpty()) {
-            //                setDockstoreYmlAuthorsForVersion(yamlAuthors, remoteWorkflowVersion);
-            //            }
+            if( !yamlAuthors.isEmpty() )
+            {
+                setDockstoreYmlAuthorsForVersion( yamlAuthors, remoteWorkflowVersion );
+            }
 
             // Mark the version as valid/invalid.
             remoteWorkflowVersion.setValid( isValidVersion( remoteWorkflowVersion ) );
 
 
             workflow.addWorkflowVersion( remoteWorkflowVersion );
-            WorkflowVersion updatedWorkflowVersion = remoteWorkflowVersion;
+            WorkflowVersion workflowVersion = remoteWorkflowVersion;
 
             //???FileFormatHelper.updateFileFormats(workflow, Set.of(updatedWorkflowVersion), fileFormatDAO, false);
 
             // If this version corresponds to the latest tag, make it the default version, if appropriate.
-            setDefaultVersionToLatestTagIfAppropriate( latestTagAsDefault, workflow, updatedWorkflowVersion );
+            setDefaultVersionToLatestTagIfAppropriate( latestTagAsDefault, workflow, workflowVersion );
 
             // If this version corresponds to the GitHub default branch, make it the default version, if appropriate.
-            setDefaultVersionToGitHubDefaultIfAppropriate( latestTagAsDefault, workflow, updatedWorkflowVersion, repository );
+            setDefaultVersionToGitHubDefaultIfAppropriate( latestTagAsDefault, workflow, workflowVersion, repository );
+            
+            checkAndAddDockerImages( repository, workflowVersion, languageHandler );
 
             // Log that we've successfully added the version.
             LOG.info( "Version " + remoteWorkflowVersion.getName() + " has been added to workflow " + workflow.getWorkflowPath() + "." );
 
-            return updatedWorkflowVersion;
+            return workflowVersion;
 
         }
-        catch (IOException ex)
+        catch (IOException | CustomLoggedException ex)
         {
             final String message = "Cannot retrieve the workflow reference from GitHub, ensure that " + gitReference + " is a valid tag.";
             LOG.error( message, ex );
             throw new CustomLoggedException( message );
         }
+    }
+
+    private void checkAndAddDockerImages(String repository, WorkflowVersion version, LanguageHandlerInterface languageHandler)
+    {
+
+        List<Map<String, String>> tools = languageHandler.getTools( repository, version.getWorkflowPath(), getMainDescriptorFile( version ).getContent(),
+                extractDescriptorAndSecondaryFiles( version ),
+                LanguageHandlerInterface.Type.TOOLS );
+
+        if( !tools.isEmpty() )
+        {
+            // Check that a snapshot can occur (all images are referenced by tag or digest).
+            languageHandler.checkSnapshotImages( version.getName(), tools );
+            // Retrieve the images.
+            Set<Image> images = languageHandler.getImagesFromRegistry( tools );
+            // Add them to the version.
+            version.getImages().addAll( images );
+        }
+    }
+
+    /**
+     * This method will find the main descriptor file based on the workflow version passed in the parameter
+     *
+     * @param workflowVersion workflowVersion with collects sourcefiles
+     * @return mainDescriptor
+     */
+    private SourceFile getMainDescriptorFile(WorkflowVersion workflowVersion)
+    {
+
+        SourceFile mainDescriptor = null;
+        for ( SourceFile sourceFile : workflowVersion.getSourceFiles() )
+        {
+            if( sourceFile.getPath().equals( workflowVersion.getWorkflowPath() ) )
+            {
+                mainDescriptor = sourceFile;
+                break;
+            }
+        }
+
+        return mainDescriptor;
+    }
+
+    /**
+     * Populates the return file with the descriptor and secondaryDescContent as a map between file paths and secondary
+     * files
+     *
+     * @param workflowVersion source control version to consider
+     * @return secondary file map (string path -> string content)
+     */
+    private Set<SourceFile> extractDescriptorAndSecondaryFiles(WorkflowVersion workflowVersion)
+    {
+        return workflowVersion.getSourceFiles().stream().filter( sf -> !sf.getPath().equals( workflowVersion.getWorkflowPath() ) ).collect( Collectors.toSet() );
+    }
+
+    /**
+     * Sets a version's authors to .dockstore.yml authors. This will overwrite any existing authors in the version.
+     * 
+     * @param yamlAuthors
+     * @param version
+     */
+    private void setDockstoreYmlAuthorsForVersion(final List<YamlAuthor> yamlAuthors, WorkflowVersion version)
+    {
+        final Set<Author> authors = yamlAuthors.stream().filter( yamlAuthor -> yamlAuthor.getOrcid() == null ).map( yamlAuthor -> {
+            Author author = new Author();
+            author.setName( yamlAuthor.getName() );
+            author.setRole( yamlAuthor.getRole() );
+            author.setAffiliation( yamlAuthor.getAffiliation() );
+            author.setEmail( yamlAuthor.getEmail() );
+            return author;
+        } ).collect( Collectors.toSet() );
+        version.setAuthors( authors );
+
+        final Set<OrcidAuthor> orcidAuthors = yamlAuthors.stream().filter( yamlAuthor -> yamlAuthor.getOrcid() != null/* && ORCIDHelper.isValidOrcidId(yamlAuthor.getOrcid())*/ )
+                .map( yamlAuthor -> {
+                    //                    OrcidAuthor existingOrcidAuthor = orcidAuthorDAO.findByOrcidId(yamlAuthor.getOrcid());
+                    //                    if (existingOrcidAuthor == null) {
+                    //                        long id = orcidAuthorDAO.create(new OrcidAuthor(yamlAuthor.getOrcid()));
+                    //                        return orcidAuthorDAO.findById(id);
+                    //                    } else {
+                    //                        return existingOrcidAuthor;
+                    //                    }
+                    return new OrcidAuthor( yamlAuthor.getOrcid() );
+                } ).collect( Collectors.toSet() );
+        version.setOrcidAuthors( orcidAuthors );
     }
 
     /**

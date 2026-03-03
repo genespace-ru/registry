@@ -22,6 +22,13 @@ public class RemoveRepository extends GOperationSupport {
             for(def ver: versions) {
                 database.resource2versions.removeBy([version:ver.$ID])
             }
+
+            def resources = db.list("SELECT ID FROM resources WHERE repository=${repo.$ID}" )
+            for(def res: resources) {
+                database.resource2docker.removeBy([resource:res.$ID])
+            }
+
+
             database.resources.removeBy([repository: repo.$ID])
             database.versions.removeBy([repository: repo.$ID])
         }

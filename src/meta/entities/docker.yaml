@@ -1,0 +1,52 @@
+docker:
+  type: collection
+  displayName: Docker
+  doc: Docker images
+  primaryKey: ID
+  
+  scheme:
+    columns:
+    - ID:
+        type: KEYTYPE
+        autoIncrement: true
+        primaryKey: true
+    - image:
+        type: VARCHAR(200)
+        doc: Docker image path
+    - url:
+        type: VARCHAR(200)
+        doc: Docker image URL
+    - whoInserted___:
+        type: VARCHAR(100)
+        defaultValue: '''Administrator'''
+    - creationDate___:
+        type: DATETIME
+        defaultValue: CURRENT_TIMESTAMP
+    - whoModified___:
+        type: VARCHAR(100)
+        canBeNull: true
+    - modificationDate___:
+        type: DATETIME
+        canBeNull: true
+        
+  queries:
+  - '*** Selection view ***':
+      code: |-
+        SELECT
+          d.ID,
+          d.image,
+        FROM docker d
+  - ForResourceCard:
+      type: 1D
+      invisible: true
+      layout: '{"hideTitle":"true", "quickType":"select"}'
+      roles: [Administrator]
+      code: |-
+        SELECT
+          d.ID,
+          r.ID AS "___resID",
+          d.image AS "Name",
+          COALESCE('<a target="_blank" href="' || d.url || '">'|| d.image|| '</a>', '') AS "Link"
+        FROM docker d
+        JOIN resource2docker r2d ON r2d.docker = d.ID
+        JOIN resources r ON r2d.resource = r.ID          

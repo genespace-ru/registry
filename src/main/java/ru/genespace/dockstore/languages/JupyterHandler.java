@@ -19,6 +19,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
 import com.google.gson.annotations.SerializedName;
 
+import ru.genespace.dockstore.Author;
 import ru.genespace.dockstore.DescriptorLanguage;
 import ru.genespace.dockstore.SourceFile;
 import ru.genespace.dockstore.VersionTypeValidation;
@@ -114,18 +115,12 @@ public class JupyterHandler implements LanguageHandlerInterface {
     private void processAuthors(Nbformat notebook, WorkflowVersion version) {
         List<Nbformat.Metadata.Author> authors = notebook.getMetadata().getAuthors();
         if (authors != null) {
-            //commented
-//            version.setAuthors(authors.stream()
-//                .map(Nbformat.Metadata.Author::getName)
-//                .filter(StringUtils::isNotEmpty)
-//                .map(name -> {
-//                    Author versionAuthor = new Author();
-//                    versionAuthor.setName(name);
-//                    LOG.info("Notebook file contains author '{}'", name);
-//                    return versionAuthor;
-//                })
-//                .collect(Collectors.toSet())
-// );
+            version.setAuthors( authors.stream().map( Nbformat.Metadata.Author::getName ).filter( StringUtils::isNotEmpty ).map( name -> {
+                Author versionAuthor = new Author();
+                versionAuthor.setName( name );
+                LOG.info( "Notebook file contains author '{}'", name );
+                return versionAuthor;
+            } ).collect( Collectors.toSet() ) );
         }
     }
 

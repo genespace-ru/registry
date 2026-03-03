@@ -1,0 +1,28 @@
+resource2docker:
+  type: collection
+  doc: Link between resources and docker images
+  primaryKey: ID
+  
+  scheme:
+    columns:
+    - ID:
+        type: KEYTYPE
+        autoIncrement: true
+        primaryKey: true
+    - resource:
+        type: KEYTYPE
+        reference: resources.ID
+        doc: resource
+    - docker:
+        type: KEYTYPE
+        reference: versions.ID
+        doc: version (branch or tag in Git repository)
+                    
+    indices:
+    - IDX_RESOURCE_DOCKER:
+        columns: resource
+    - IDX_DOCKER:
+        columns: docker
+
+
+                  

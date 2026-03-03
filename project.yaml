@@ -19,6 +19,8 @@ registry:
   - resources
   - resource2versions
   - versions
+  - docker
+  - resource2docker
   scripts:
   - Post-db
   - dictionaries

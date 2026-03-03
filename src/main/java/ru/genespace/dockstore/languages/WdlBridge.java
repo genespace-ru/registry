@@ -1,8 +1,12 @@
 package ru.genespace.dockstore.languages;
 
+import java.io.StringReader;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import biouml.plugins.wdl.parser.AstStart;
+import biouml.plugins.wdl.parser.WDLParser;
 
 //This is STUB class for WDL validation. 
 //TODO: Use biouml.plugins.wdl reading and validation in auto-generated methods
@@ -10,6 +14,10 @@ import java.util.Optional;
 public class WdlBridge
 {
 
+    public WdlBridge()
+    {
+
+    }
     public void setSecondaryFiles(Map<String, String> secondaryFiles)
     {
         // TODO Auto-generated method stub

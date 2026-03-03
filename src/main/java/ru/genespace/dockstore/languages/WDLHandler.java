@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -52,8 +53,10 @@ import org.slf4j.LoggerFactory;
 import com.google.common.base.Strings;
 import com.google.common.io.Files;
 
+import ru.genespace.dockstore.Author;
 import ru.genespace.dockstore.DescriptionSource;
 import ru.genespace.dockstore.DescriptorLanguage;
+import ru.genespace.dockstore.DockerParameter;
 import ru.genespace.dockstore.ParsedInformation;
 import ru.genespace.dockstore.SourceFile;
 import ru.genespace.dockstore.Validation;
@@ -149,7 +152,7 @@ public class WDLHandler implements LanguageHandlerInterface {
                 List<Map<String, String>> metadata = wdlBridge.getMetadata( tempMainDescriptor.getAbsolutePath(), filepath );
                 Queue<String> authors = new LinkedList<>();
                 Queue<String> emails = new LinkedList<>();
-                //Set<Author> newAuthors = new HashSet<>();
+                Set<Author> newAuthors = new HashSet<>();
                 final String[] mainDescription = { null };
 
                 metadata.forEach( metaBlock -> {
@@ -172,24 +175,29 @@ public class WDLHandler implements LanguageHandlerInterface {
                             emails.add( callEmail.trim() );
                         }
                     }
-                    //commented
-                    //                        if (!authors.isEmpty()) {
-                    //                            // Only set emails for authors if every author has an email.
-                    //                            // Otherwise, ignore emails because we don't know which email belongs to which author
-                    //                            if (authors.size() == emails.size()) {
-                    //                                while (!authors.isEmpty()) {
-                    //                                    Author newAuthor = new Author(authors.remove());
-                    //                                    newAuthor.setEmail(emails.remove());
-                    //                                    newAuthors.add(newAuthor);
-                    //                                }
-                    //                            } else {
-                    //                                while (!authors.isEmpty()) {
-                    //                                    Author newAuthor = new Author(authors.remove());
-                    //                                    newAuthors.add(newAuthor);
-                    //                                }
-                    //                                emails.clear();
-                    //                            }
-                    //                        }
+                    if( !authors.isEmpty() )
+                    {
+                        // Only set emails for authors if every author has an email.
+                        // Otherwise, ignore emails because we don't know which email belongs to which author
+                        if( authors.size() == emails.size() )
+                        {
+                            while ( !authors.isEmpty() )
+                            {
+                                Author newAuthor = new Author( authors.remove() );
+                                newAuthor.setEmail( emails.remove() );
+                                newAuthors.add( newAuthor );
+                            }
+                        }
+                        else
+                        {
+                            while ( !authors.isEmpty() )
+                            {
+                                Author newAuthor = new Author( authors.remove() );
+                                newAuthors.add( newAuthor );
+                            }
+                            emails.clear();
+                        }
+                    }
 
                     String description = metaBlock.get( "description" );
                     if( description != null && !description.isBlank() )
@@ -199,11 +207,10 @@ public class WDLHandler implements LanguageHandlerInterface {
                 } );
 
                 // Add authors from descriptor
-                //commented
-                //                for ( Author author : newAuthors )
-                //                {
-                //                    version.addAuthor( author );
-                //                }
+                for ( Author author : newAuthors )
+                {
+                    version.addAuthor( author );
+                }
 
                 if( !Strings.isNullOrEmpty( mainDescription[0] ) )
                 {
@@ -219,8 +226,8 @@ public class WDLHandler implements LanguageHandlerInterface {
                 validationMessageObject.put( filepath, errorMessage );
                 version.addOrUpdateValidation( new Validation( DescriptorLanguage.FileType.DOCKSTORE_WDL, false, validationMessageObject ) );
                 version.setDescriptionAndDescriptionSource( null, null );
-                //version.getAuthors().clear();
-                //version.getOrcidAuthors().clear();
+                version.getAuthors().clear();
+                version.getOrcidAuthors().clear();
                 return version;
             }
             catch (StackOverflowError error)
@@ -513,6 +520,23 @@ public class WDLHandler implements LanguageHandlerInterface {
         }
         return imports;
     }
+
+    /**
+     * This method will get the content for tool tab with descriptor type = WDL It will then call another method to
+     * transform the content into JSON string and return
+     *
+     * @param mainDescriptorPath the name of the main descriptor
+     * @param mainDescriptor the content of the main descriptor
+     * @param secondarySourceFiles the content of the secondary descriptors in a map, looks like file paths -> content
+     * @param type tools or DAG
+     * @return either a list of tools or a json map
+     */
+
+    public List<Map<String, String>> getTools(String mainDescriptorPath, String mainDescriptor, Set<SourceFile> secondarySourceFiles, Type type)
+    {
+        List<Map<String, String>> result = new ArrayList<>();
+        return result;
+    }
     //
     //    /**
     //     * This method will get the content for tool tab with descriptor type = WDL
@@ -571,46 +595,55 @@ public class WDLHandler implements LanguageHandlerInterface {
     //        }
     //        return convertMapsToContent(mainDescName, type, dao, callType, toolType, toolInfoMap, namespaceToPath);
     //    }
-    //
-    //    /**
-    //     * Convenience function to convert old map with values of Docker image names to values of DockerParameter
-    //     *
-    //     * @param callsToDockerMap
-    //     * @return
-    //     */
-    //    protected static Map<String, DockerParameter> convertToDockerParameter(Map<String, String> callsToDockerMap) {
-    //        return callsToDockerMap.entrySet().stream().collect(
-    //                Collectors.toMap(Map.Entry::getKey, v -> new DockerParameter(v.getValue(), DockerImageReference.UNKNOWN), (x, y) -> y, LinkedHashMap::new));
-    //    }
-    //
-    //    /**
-    //     * For existing code, converts from maps of untyped data to ToolInfo
-    //     * @param callsToDockerMap map from names of tools to Docker containers
-    //     * @param callsToDependencies map from names of tools to names of their parent tools (dependencies)
-    //     * @return
-    //     */
-    //    protected static Map<String, ToolInfo> mapConverterToToolInfo(Map<String, DockerParameter> callsToDockerMap, Map<String, List<String>> callsToDependencies) {
-    //        Map<String, ToolInfo> toolInfoMap;
-    //        toolInfoMap = new HashMap<>();
-    //        callsToDockerMap.forEach((toolName, dockerParameter) -> toolInfoMap.compute(toolName, (key, value) -> {
-    //            if (value == null) {
-    //                DockerSpecifier dockerSpecifier = LanguageHandlerInterface.determineImageSpecifier(dockerParameter.imageName(), dockerParameter.imageReference());
-    //                return new ToolInfo(dockerParameter.imageName(), new ArrayList<>(), dockerSpecifier);
-    //            } else {
-    //                value.dockerContainer = dockerParameter.imageName();
-    //                return value;
-    //            }
-    //        }));
-    //        callsToDependencies.forEach((toolName, dependencies) -> toolInfoMap.compute(toolName, (key, value) -> {
-    //            if (value == null) {
-    //                return new ToolInfo(null, new ArrayList<>());
-    //            } else {
-    //                value.toolDependencyList.addAll(dependencies);
-    //                return value;
-    //            }
-    //        }));
-    //        return toolInfoMap;
-    //    }
+
+    /**
+     * Convenience function to convert old map with values of Docker image names to values of DockerParameter
+     *
+     * @param callsToDockerMap
+     * @return
+     */
+    protected static Map<String, DockerParameter> convertToDockerParameter(Map<String, String> callsToDockerMap)
+    {
+        return callsToDockerMap.entrySet().stream()
+                .collect( Collectors.toMap( Map.Entry::getKey, v -> new DockerParameter( v.getValue(), DockerImageReference.UNKNOWN ), (x, y) -> y, LinkedHashMap::new ) );
+    }
+
+    /**
+     * For existing code, converts from maps of untyped data to ToolInfo
+     * 
+     * @param callsToDockerMap map from names of tools to Docker containers
+     * @param callsToDependencies map from names of tools to names of their parent tools (dependencies)
+     * @return
+     */
+    protected static Map<String, ToolInfo> mapConverterToToolInfo(Map<String, DockerParameter> callsToDockerMap, Map<String, List<String>> callsToDependencies)
+    {
+        Map<String, ToolInfo> toolInfoMap;
+        toolInfoMap = new HashMap<>();
+        callsToDockerMap.forEach( (toolName, dockerParameter) -> toolInfoMap.compute( toolName, (key, value) -> {
+            if( value == null )
+            {
+                DockerSpecifier dockerSpecifier = LanguageHandlerInterface.determineImageSpecifier( dockerParameter.imageName(), dockerParameter.imageReference() );
+                return new ToolInfo( dockerParameter.imageName(), new ArrayList<>(), dockerSpecifier );
+            }
+            else
+            {
+                value.dockerContainer = dockerParameter.imageName();
+                return value;
+            }
+        } ) );
+        callsToDependencies.forEach( (toolName, dependencies) -> toolInfoMap.compute( toolName, (key, value) -> {
+            if( value == null )
+            {
+                return new ToolInfo( null, new ArrayList<>() );
+            }
+            else
+            {
+                value.toolDependencyList.addAll( dependencies );
+                return value;
+            }
+        } ) );
+        return toolInfoMap;
+    }
 
     /**
      * Convert a possibly invalid semantic version string to a valid semantic version string

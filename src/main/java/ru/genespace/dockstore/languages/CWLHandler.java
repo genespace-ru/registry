@@ -45,9 +45,11 @@ import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 
+import ru.genespace.dockstore.Author;
 import ru.genespace.dockstore.DescriptorLanguage;
 import ru.genespace.dockstore.ParsedInformation;
 import ru.genespace.dockstore.SourceFile;
+import ru.genespace.dockstore.Validation;
 import ru.genespace.dockstore.VersionTypeValidation;
 import ru.genespace.dockstore.Workflow;
 import ru.genespace.dockstore.WorkflowVersion;
@@ -136,6 +138,7 @@ public class CWLHandler extends AbstractLanguageHandler implements LanguageHandl
 
                 final String finalChoiceForDescription = firstNonNullAndNonEmpty(doc, description, label);
 
+                //commented
                 //                if (finalChoiceForDescription != null) {
                 //                    version.setDescriptionAndDescriptionSource(finalChoiceForDescription, DescriptionSource.DESCRIPTOR);
                 //                } else {
@@ -145,13 +148,16 @@ public class CWLHandler extends AbstractLanguageHandler implements LanguageHandl
                 // Add authors from descriptor
                 String dctKey = "dct:creator";
                 String schemaKey = "s:author";
-                //                if (map.containsKey(schemaKey)) {
-                //                    processAuthor(version, map, schemaKey, "s:name", "s:email", "Author not found!");
-                //                } else if (map.containsKey(dctKey)) {
-                //                    processAuthor(version, map, dctKey, "foaf:name", "foaf:mbox", "Creator not found!");
-                //                }
-                //
-                //                setCwlVersionsFromSourceFiles(sourceFiles, version);
+                if( map.containsKey( schemaKey ) )
+                {
+                    processAuthor( version, map, schemaKey, "s:name", "s:email", "Author not found!" );
+                }
+                else if( map.containsKey( dctKey ) )
+                {
+                    processAuthor( version, map, dctKey, "foaf:name", "foaf:mbox", "Creator not found!" );
+                }
+
+                setCwlVersionsFromSourceFiles( sourceFiles, version );
 
                 LOG.info("Repository has Dockstore.cwl");
             } catch (YAMLException | JsonParseException | NullPointerException | ClassCastException ex) {
@@ -167,7 +173,7 @@ public class CWLHandler extends AbstractLanguageHandler implements LanguageHandl
                 // should just report on the malformed workflow
                 Map<String, String> validationMessageObject = new HashMap<>();
                 validationMessageObject.put(filePath, "CWL file is malformed or missing, cannot extract metadata: " + message);
-                //version.addOrUpdateValidation(new Validation(DescriptorLanguage.FileType.DOCKSTORE_CWL, false, validationMessageObject));
+                version.addOrUpdateValidation( new Validation( DescriptorLanguage.FileType.DOCKSTORE_CWL, false, validationMessageObject ) );
             }
 
         }
@@ -208,7 +214,7 @@ public class CWLHandler extends AbstractLanguageHandler implements LanguageHandl
                 allVersions.addAll(fileVersions);
             }
         }
-        //version.getVersionMetadata().setDescriptorTypeVersions(sortVersionsDescending(allVersions));
+        version.getVersionMetadata().setDescriptorTypeVersions( sortVersionsDescending( allVersions ) );
     }
 
     /**
@@ -285,22 +291,27 @@ public class CWLHandler extends AbstractLanguageHandler implements LanguageHandl
      */
     private void processAuthor(WorkflowVersion version, Map map, String dctKey, String authorKey, String emailKey, String errorMessage)
     {
-        //        Object o = map.get(dctKey);
-        //        if (o instanceof List) {
-        //            o = ((List)o).get(0);
-        //        }
-        //        map = (Map)o;
-        //        if (map != null) {
-        //            String author = (String)map.get(authorKey);
-        //            Author newAuthor = new Author(author);
-        //            String email = (String)map.get(emailKey);
-        //            if (!Strings.isNullOrEmpty(email)) {
-        //                newAuthor.setEmail(email.replaceFirst("^mailto:", ""));
-        //            }
-        //            version.addAuthor(newAuthor);
-        //        } else {
-        //            LOG.info(errorMessage);
-        //        }
+        Object o = map.get( dctKey );
+        if( o instanceof List )
+        {
+            o = ((List) o).get( 0 );
+        }
+        map = (Map) o;
+        if( map != null )
+        {
+            String author = (String) map.get( authorKey );
+            Author newAuthor = new Author( author );
+            String email = (String) map.get( emailKey );
+            if( StringUtils.isNotEmpty( email ) )
+            {
+                newAuthor.setEmail( email.replaceFirst( "^mailto:", "" ) );
+            }
+            version.addAuthor( newAuthor );
+        }
+        else
+        {
+            LOG.info( errorMessage );
+        }
     }
 
     @Override

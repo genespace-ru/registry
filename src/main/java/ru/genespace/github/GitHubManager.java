@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -28,6 +29,7 @@ import ru.genespace.dockstore.WorkflowVersion.ReferenceType;
 import ru.genespace.dockstore.yaml.DockstoreYaml12;
 import ru.genespace.dockstore.yaml.DockstoreYamlHelper;
 import ru.genespace.dockstore.yaml.DockstoreYamlHelper.DockstoreYamlException;
+import ru.genespace.dockstore.yaml.YamlAuthor;
 import ru.genespace.dockstore.yaml.YamlNotebook;
 import ru.genespace.dockstore.yaml.YamlTool;
 import ru.genespace.dockstore.yaml.YamlWorkflow;
@@ -134,7 +136,8 @@ public class GitHubManager
                             if( workflows.size() >= workflowNumberLimit )
                                 break;
                         }
-                        WorkflowVersion version = repo.addDockstoreYmlVersionToWorkflow( repositoryId, referenceStr, file, workflow, true );
+                        List<YamlAuthor> yamlAuthors = yamlWorkflow.getAuthors();
+                        WorkflowVersion version = repo.addDockstoreYmlVersionToWorkflow( repositoryId, referenceStr, file, workflow, true, yamlAuthors );
                         if( yamlWorkflow.getReadMePath() != null )
                         {
                             version.setReadMePath( yamlWorkflow.getReadMePath() );
@@ -163,7 +166,8 @@ public class GitHubManager
                             if( workflows.size() >= workflowNumberLimit )
                                 break;
                         }
-                        WorkflowVersion version = repo.addDockstoreYmlVersionToWorkflow( repositoryId, referenceStr, file, workflow, true );
+                        List<YamlAuthor> yamlAuthors = yamlNotebook.getAuthors();
+                        WorkflowVersion version = repo.addDockstoreYmlVersionToWorkflow( repositoryId, referenceStr, file, workflow, true, yamlAuthors );
                         version.setName( branchName );
                     }
 
@@ -184,7 +188,8 @@ public class GitHubManager
                             if( workflows.size() >= workflowNumberLimit )
                                 break;
                         }
-                        WorkflowVersion version = repo.addDockstoreYmlVersionToWorkflow( repositoryId, referenceStr, file, workflow, true );
+                        List<YamlAuthor> yamlAuthors = yamlTool.getAuthors();
+                        WorkflowVersion version = repo.addDockstoreYmlVersionToWorkflow( repositoryId, referenceStr, file, workflow, true, yamlAuthors );
                         version.setName( branchName );
                     }
                 }

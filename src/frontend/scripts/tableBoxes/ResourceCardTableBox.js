@@ -14,7 +14,7 @@ const ResourceCardTableBox = ({ value }) => {
     { title: "Сценарий",   url: "#!table/resources/ResourceTab/___resID=" + resource.ID.value },
     { title: "Запуск", url: "#!table/resources/ToDo/___resID=" + resource.ID.value },
     { title: "Файлы", url: "#!table/resources/ToDo/___resID=" + resource.ID.value },
-    { title: "Инструменты", url: "#!table/resources/ToDo/___resID=" + resource.ID.value },
+    { title: "Инструменты", url: "#!table/docker/ForResourceCard/___resID=" + resource.ID.value },
     { title: "DAG", url: "#!table/resources/ToDo/___resID=" + resource.ID.value },
     { title: "Метрики", url: "#!table/resources/ToDo/___resID=" + resource.ID.value },
   ];

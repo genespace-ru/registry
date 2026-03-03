@@ -2,6 +2,7 @@ package ru.genespace.dockstore;
 
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -56,8 +57,17 @@ public class WorkflowVersion implements Comparable<WorkflowVersion>
 
     private final SortedSet<Validation> validations;
 
+    //Non-ORCID Authors for each version.")
+    private Set<Author> authors = new HashSet<>();
+
+    //ORCID Authors for versions.")
+    private Set<OrcidAuthor> orcidAuthors = new HashSet<>();
+
     //Implementation specific ID for the tag in this web service
     protected long id;
+
+    //The images that belong to this version
+    private Set<Image> images = new HashSet<>();
 
     public WorkflowVersion()
     {
@@ -313,6 +323,49 @@ public class WorkflowVersion implements Comparable<WorkflowVersion>
             versionMetadata.setId( this.id );
         }
         return versionMetadata;
+    }
+
+    public Set<Author> getAuthors()
+    {
+        return authors;
+    }
+
+    public Set<OrcidAuthor> getOrcidAuthors()
+    {
+        return orcidAuthors;
+    }
+
+    public void setOrcidAuthors(final Set<OrcidAuthor> orcidAuthors)
+    {
+        this.getOrcidAuthors().clear();
+        if( orcidAuthors != null )
+        {
+            this.orcidAuthors.addAll( orcidAuthors );
+        }
+    }
+
+    public void addAuthor(final Author author)
+    {
+        this.authors.add( author );
+    }
+
+    public void setAuthors(final Set<Author> authors)
+    {
+        this.authors.clear();
+        if( authors != null )
+        {
+            this.authors.addAll( authors );
+        }
+    }
+
+    public Set<Image> getImages()
+    {
+        return images;
+    }
+
+    public void setImages(Set<Image> images)
+    {
+        this.images = images;
     }
 
     /**

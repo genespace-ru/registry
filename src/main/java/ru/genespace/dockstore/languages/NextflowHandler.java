@@ -50,10 +50,14 @@ import org.codehaus.groovy.antlr.parser.GroovyRecognizer;
 
 import com.google.common.base.CharMatcher;
 
+import biouml.plugins.wdl.model.ScriptInfo;
+import biouml.plugins.wdl.model.TaskInfo;
+import biouml.plugins.wdl.nextflow.NextFlowImporter;
 import biouml.plugins.wdl.nextflow.NextFlowRunner;
 import groovyjarjarantlr.RecognitionException;
 import groovyjarjarantlr.TokenStreamException;
 import groovyjarjarantlr.collections.AST;
+import ru.genespace.dockstore.Author;
 import ru.genespace.dockstore.DescriptionSource;
 import ru.genespace.dockstore.DescriptorLanguage;
 import ru.genespace.dockstore.DescriptorLanguage.FileType;
@@ -90,14 +94,15 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
             descriptionInProgress = version.getDescription();
         }
         // Add authors from descriptor
-        //commented
-        //                    if (configuration.containsKey("manifest.author")) {
-        //                        String[] authors = configuration.getString("manifest.author").split(",");
-        //                        for (String author : authors) {
-        //                            Author newAuthor = new Author(author.trim());
-        //                            version.addAuthor(newAuthor);
-        //                        }
-        //                    }
+        if( configuration.containsKey( "manifest.author" ) )
+        {
+            String[] authors = configuration.getString( "manifest.author" ).split( "," );
+            for ( String author : authors )
+            {
+                Author newAuthor = new Author( author.trim() );
+                version.addAuthor( newAuthor );
+            }
+        }
         // look for extended help message from nf-core workflows when it is available
         final String mainScriptPath = getMainScriptPath( configuration );
         final Optional<SourceFile> potentialScript = findSourceFileByPath( sourceFiles, mainScriptPath );
@@ -167,7 +172,7 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
         // add the Nextflow scripts
         final String mainScriptPath = getMainScriptPath(configuration);
         suspectedConfigImports.add(mainScriptPath);
-        //!!!handleSetOfIndividualFiles(repositoryId, version, sourceCodeRepoInterface, filepath, suspectedConfigImports, imports, DescriptorLanguage.FileType.NEXTFLOW);
+        handleSetOfIndividualFiles( repositoryId, version, sourceCodeRepoInterface, filepath, suspectedConfigImports, imports, DescriptorLanguage.FileType.NEXTFLOW );
 
         Set<String> suspectedOtherWorkflowFiles = new HashSet<>();
         // from https://nf-co.re/docs/contributing/pipelines/pipeline_file_structure well-known individual files like ro-crate-metadata.json, nextflow_schema.json, etc.
@@ -178,7 +183,8 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
         suspectedOtherWorkflowFiles.add("modules.json");
         suspectedOtherWorkflowFiles.add(".nf-core.yml");
         suspectedOtherWorkflowFiles.add("ro-crate-metadata.json");
-        //!!!handleSetOfIndividualFiles(repositoryId, version, sourceCodeRepoInterface, filepath, suspectedOtherWorkflowFiles, imports, DescriptorLanguage.FileType.DOCKSTORE_WORKFLOW_OTHER);
+        handleSetOfIndividualFiles( repositoryId, version, sourceCodeRepoInterface, filepath, suspectedOtherWorkflowFiles, imports,
+                DescriptorLanguage.FileType.DOCKSTORE_WORKFLOW_OTHER );
 
         // source files in /lib seem to be automatically added to the script classpath
         // binaries are also there and will need to be ignored
@@ -215,7 +221,7 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
             boolean isWindows = System.getProperty( "os.name" ).startsWith( "Windows" );
             try
             {
-                Properties properties = NextFlowRunner.getNextflowConfig( tempFile.toFile(), id, isWindows, true );
+                Properties properties = NextFlowRunner.getNextflowConfig( tempFile.toFile(), id, true, isWindows );
                 return ConfigurationConverter.getConfiguration( properties );
             }
             catch (Exception e)
@@ -236,20 +242,21 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
         }
     }
 
-    //    private void handleSetOfIndividualFiles(String repositoryId, Version version, GitHubManager sourceCodeRepoInterface, String filepath, Set<String> suspectedConfigImports,
-    //        Map<String, SourceFile> imports, DescriptorLanguage.FileType fileType) {
-    //        for (String filename : suspectedConfigImports) {
-    //            String filenameAbsolutePath = unsafeConvertRelativePathToAbsolutePath(filepath, filename);
-    //            Optional<SourceFile> sourceFile = sourceCodeRepoInterface
-    //                .readFile(repositoryId, version, fileType, filenameAbsolutePath);
-    //            if (sourceFile.isPresent()) {
-    //                sourceFile.get().setPath(filename);
-    //                imports.put(filename, sourceFile.get());
-    //                imports.putAll(processOtherImports(repositoryId, sourceFile.get().getContent(), version, sourceCodeRepoInterface,
-    //                        sourceFile.get().getAbsolutePath()));
-    //            }
-    //        }
-    //    }
+    private void handleSetOfIndividualFiles(String repositoryId, WorkflowVersion version, GitHubRepository sourceCodeRepoInterface, String filepath,
+            Set<String> suspectedConfigImports, Map<String, SourceFile> imports, DescriptorLanguage.FileType fileType)
+    {
+        for ( String filename : suspectedConfigImports )
+        {
+            String filenameAbsolutePath = unsafeConvertRelativePathToAbsolutePath( filepath, filename );
+            Optional<SourceFile> sourceFile = sourceCodeRepoInterface.readFile( repositoryId, version, fileType, filenameAbsolutePath );
+            if( sourceFile.isPresent() )
+            {
+                sourceFile.get().setPath( filename );
+                imports.put( filename, sourceFile.get() );
+                imports.putAll( processOtherImports( repositoryId, sourceFile.get().getContent(), version, sourceCodeRepoInterface, sourceFile.get().getAbsolutePath() ) );
+            }
+        }
+    }
 
     /**
      * Similar to processImports() of other handlers.
@@ -262,23 +269,27 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
      * @param workingDirectoryForFile   The parent directory of the file being analyzed
      * @return
      */
-    //    private Map<String, SourceFile> processOtherImports(String repositoryId, String content, Version version,
-    //            GitHubManager sourceCodeRepoInterface, String workingDirectoryForFile) {
-    //        Map<String, SourceFile> imports = new HashMap<>();
-    //        Matcher m = IMPORT_PATTERN.matcher(content);
-    //        while (m.find()) {
-    //            String path = getRelativeImportPathFromLine(m.group(), workingDirectoryForFile);
-    //            String absoluteImportPath = unsafeConvertRelativePathToAbsolutePath(workingDirectoryForFile, path);
-    //            handleImport(repositoryId, version, imports, path, sourceCodeRepoInterface, absoluteImportPath);
-    //        }
-    //        Map<String, SourceFile> recursiveImports = new HashMap<>();
-    //        for (Map.Entry<String, SourceFile> importFile : imports.entrySet()) {
-    //            final Map<String, SourceFile> sourceFiles = processOtherImports(repositoryId, importFile.getValue().getContent(), version, sourceCodeRepoInterface, importFile.getKey());
-    //            recursiveImports.putAll(sourceFiles);
-    //        }
-    //        recursiveImports.putAll(imports);
-    //        return recursiveImports;
-    //    }
+    private Map<String, SourceFile> processOtherImports(String repositoryId, String content, WorkflowVersion version, GitHubRepository sourceCodeRepoInterface,
+            String workingDirectoryForFile)
+    {
+        Map<String, SourceFile> imports = new HashMap<>();
+        Matcher m = IMPORT_PATTERN.matcher( content );
+        while ( m.find() )
+        {
+            String path = getRelativeImportPathFromLine( m.group(), workingDirectoryForFile );
+            String absoluteImportPath = unsafeConvertRelativePathToAbsolutePath( workingDirectoryForFile, path );
+            handleImport( repositoryId, version, imports, path, sourceCodeRepoInterface, absoluteImportPath );
+        }
+        Map<String, SourceFile> recursiveImports = new HashMap<>();
+        for ( Map.Entry<String, SourceFile> importFile : imports.entrySet() )
+        {
+            final Map<String, SourceFile> sourceFiles = processOtherImports( repositoryId, importFile.getValue().getContent(), version, sourceCodeRepoInterface,
+                    importFile.getKey() );
+            recursiveImports.putAll( sourceFiles );
+        }
+        recursiveImports.putAll( imports );
+        return recursiveImports;
+    }
 
     /**
      * Give the line in the file that has the import, figure out what the relative path is
@@ -735,16 +746,69 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
     //        return map;
     //    }
 
-    private AST getNextSibling(AST ast) {
-        return (ast != null) ? ast.getNextSibling() : null;
-    }
+    //    private AST getNextSibling(AST ast) {
+    //        return (ast != null) ? ast.getNextSibling() : null;
+    //    }
+    //
+    //    private AST getFirstChild(AST ast) {
+    //        return (ast != null) ? ast.getFirstChild() : null;
+    //    }
+    //
+    //    private String getText(AST ast) {
+    //        return (ast != null) ? ast.getText() : null;
+    //    }
 
-    private AST getFirstChild(AST ast) {
-        return (ast != null) ? ast.getFirstChild() : null;
-    }
+    public List<Map<String, String>> getTools(String repositoryId, String mainDescriptorPath, String mainDescriptor, Set<SourceFile> secondarySourceFiles, Type type)
+    {
+        List<Map<String, String>> result = new ArrayList<>();
 
-    private String getText(AST ast) {
-        return (ast != null) ? ast.getText() : null;
+        Configuration configuration;
+        try
+        {
+            configuration = grabConfig( mainDescriptor, repositoryId );
+        }
+        catch (Exception e)
+        {
+            //createValidationForGeneralFailure(version, filepath);
+            //!!!log exception
+            return result;
+        }
+
+        // add the Nextflow scripts
+        String mainScriptPath = getMainScriptPath( configuration );
+        Optional<SourceFile> potentialScript = findSourceFileByPath( secondarySourceFiles, mainScriptPath );
+
+        NextFlowImporter importer = new NextFlowImporter();
+        ScriptInfo script = null;
+        if( potentialScript.isPresent() )
+        {
+
+            try
+            {
+                SourceFile file = potentialScript.get();
+                script = importer.parseNextflow( file.getPath(), file.getContent() );
+            }
+            catch (Exception e)
+            {
+            }
+        }
+        if( script != null )
+            for ( String taskName : script.getTaskNames() )
+            {
+                TaskInfo taskInfo = script.getTask( taskName );
+                String docker = taskInfo.getMetaProperty( "container" );
+                if( docker != null )
+                {
+                    Map<String, String> dataToolEntry = new HashMap<>();
+                    dataToolEntry.put( "docker", docker );
+                    String imageName = docker;
+                    DockerSpecifier dockerSpecifier = LanguageHandlerInterface.determineImageSpecifier( imageName, DockerImageReference.LITERAL );
+                    dataToolEntry.put( "specifier", dockerSpecifier.name() );
+                    result.add( dataToolEntry );
+                }
+
+            }
+        return result;
     }
 
     /**

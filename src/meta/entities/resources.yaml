@@ -27,7 +27,7 @@ resources:
         type: ENUM(CWL, WDL, NFL)
         doc: resource language
     - topic:
-        type: VARCHAR(150)
+        type: VARCHAR(200)
         canBeNull: true
         doc: |
           An optional short text description of the resource.
@@ -61,7 +61,7 @@ resources:
            
   - All records:
       roles: '@AllRoles'
-      layout: '{"quickType":"select"}'
+      layout: '{"quickType":"select", "defaultPageLimit": 50}'
       code: |-
         SELECT
           rs.ID AS "___ID",
@@ -80,7 +80,7 @@ resources:
         
   - Resource card:
       roles: '@AllRolesExceptGuest'
-      type: 1D_unknown
+      type: 1D
       layout: '{"tableBox":"resourceCard", "mode":"named", "hideTitle":"true"}'
       invisible: true
       code: |-

@@ -23,6 +23,7 @@ import ru.genespace.dockstore.yaml.YamlWorkflow
 import ru.genespace.github.GitHubManager
 import ru.genespace.github.GitHubRepository
 import ru.genespace.dockstore.DescriptorLanguage
+import ru.genespace.dockstore.Image
 
 class AddRepository extends GOperationSupport {
     Map<String, Object> presets
@@ -80,7 +81,12 @@ class AddRepository extends GOperationSupport {
             def wflName = workflow.getWorkflowName()
             if(wflName == null && workflow.getDescriptorType().equals(DescriptorLanguage.NEXTFLOW ))
                 wflName = "main.nf"
-            def wflID = database.resources << [repository: repoID, name: wflName, type: "workflow", language: lang, topic: workflow.getTopic()]
+            else if(wflName == null)
+                wflName = "undefined"
+            def topic = workflow.getTopic()
+            if(topic.length() > 200)
+                topic = topic.substring(0,200 )
+            def wflID = database.resources << [repository: repoID, name: wflName, type: "workflow", language: lang, topic: topic]
             for(WorkflowVersion version: versions) {
                 /* Versions
                  repository: repositories.ID
@@ -117,6 +123,18 @@ class AddRepository extends GOperationSupport {
                 def readmePath = version.getReadMePath()
                 def valid = version.isValid() ? 'yes' : 'no'
                 database.resource2versions << [resource: wflID, version:versionID, valid: version.isValid() ? 'yes' : 'no', primaryDescriptorPath: primaryDescriptorPath, readMePath: readmePath ]
+
+                for(Image image: version.getImages()) {
+                    def dockerDB = database.docker.getBy( [image: image.getImageID()])
+                    def dockerID = dockerDB ? dockerDB.$ID : null
+                    if(dockerID == null) {
+                        String url = image.getImageRegistry().getUrl()
+                        dockerID = database.docker << [image: image.getImageID(), url: image.getImageURL()]
+                    }
+                    def res2docker = database.resource2docker.getBy( [docker: dockerID, resource: wflID])
+                    if(res2docker == null)
+                        database.resource2docker << [docker: dockerID, resource: wflID ]
+                }
             }
         }
         setResult(OperationResult.finished())
