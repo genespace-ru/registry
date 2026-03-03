@@ -17,7 +17,8 @@
     "be5-react": "git+https://github.com/DevelopmentOnTheEdge/be5-react.git",
     "beanexplorer-react": "git+https://github.com/DevelopmentOnTheEdge/beanexplorer-react.git",
     "react": "^16.14.0",
-    "react-dom": "^16.14.0"
+    "react-dom": "^16.14.0",
+    "react-markdown": "^8.0.7"
   },
   "devDependencies": {
     "@babel/plugin-external-helpers": "^7.12.1",
