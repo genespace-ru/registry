@@ -137,10 +137,10 @@
     </dependency>
     
     <dependency>
-          <groupId>ru.biosoft.diagrams</groupId>
-          <artifactId>wdl</artifactId>
-          <version>[1.0.3,)</version>
-        </dependency>
+      <groupId>ru.biosoft.diagrams</groupId>
+      <artifactId>wdl</artifactId>
+      <version>1.0.4-SNAPSHOT</version>
+    </dependency>
         
         <!-- Source: https://mvnrepository.com/artifact/com.github.zafarkhaja/java-semver -->
     <dependency>
@@ -149,6 +149,19 @@
         <version>0.10.2</version>
         <scope>compile</scope>
     </dependency>
+    
+    <!-- https://mvnrepository.com/artifact/org.json/json -->
+    <dependency>
+        <groupId>org.json</groupId>
+        <artifactId>json</artifactId>
+        <version>20250107</version>
+    </dependency>
+    
+    <dependency>
+        <groupId>ru.biosoft.genomebrowser</groupId>
+        <artifactId>server</artifactId>
+        <version>[2.0.1,)</version>
+  </dependency>
       
   </dependencies>
 
