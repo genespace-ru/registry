@@ -138,6 +138,12 @@
     
     <dependency>
       <groupId>ru.biosoft.diagrams</groupId>
+      <artifactId>diagram</artifactId>
+      <version>1.0.4-SNAPSHOT</version>
+    </dependency>
+    
+    <dependency>
+      <groupId>ru.biosoft.diagrams</groupId>
       <artifactId>wdl</artifactId>
       <version>1.0.4-SNAPSHOT</version>
     </dependency>
