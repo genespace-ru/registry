@@ -53,6 +53,9 @@ import org.slf4j.LoggerFactory;
 import com.google.common.base.Strings;
 import com.google.common.io.Files;
 
+import biouml.plugins.wdl.diagram.WDLImporter;
+import biouml.plugins.wdl.model.ScriptInfo;
+import biouml.plugins.wdl.model.TaskInfo;
 import ru.genespace.dockstore.Author;
 import ru.genespace.dockstore.DescriptionSource;
 import ru.genespace.dockstore.DescriptorLanguage;
@@ -63,6 +66,8 @@ import ru.genespace.dockstore.Validation;
 import ru.genespace.dockstore.VersionTypeValidation;
 import ru.genespace.dockstore.Workflow;
 import ru.genespace.dockstore.WorkflowVersion;
+import ru.genespace.dockstore.languages.LanguageHandlerInterface.DockerImageReference;
+import ru.genespace.dockstore.languages.LanguageHandlerInterface.DockerSpecifier;
 import ru.genespace.github.GitHubRepository;
 import ru.genespace.misc.CustomLoggedException;
 
@@ -117,134 +122,134 @@ public class WDLHandler implements LanguageHandlerInterface {
 
     }
 
-    @Override
-    public WorkflowVersion parseWorkflowContent(String filepath, String content, Set<SourceFile> sourceFiles, WorkflowVersion version)
-    {
-        Optional<String> optValidationMessageObject = reportValidationForLocalRecursiveImports( content, sourceFiles, filepath );
-        if( optValidationMessageObject.isPresent() )
-        {
-            Map<String, String> validationMessageObject = new HashMap<>();
-            validationMessageObject.put( filepath, optValidationMessageObject.get() );
-            version.addOrUpdateValidation( new Validation( DescriptorLanguage.FileType.DOCKSTORE_WDL, false, validationMessageObject ) );
-            return version;
-        }
-
-        WdlBridge wdlBridge = new WdlBridge();
-        final Map<String, String> secondaryFiles = sourceFiles.stream().collect( Collectors.toMap( SourceFile::getAbsolutePath, SourceFile::getContent ) );
-        wdlBridge.setSecondaryFiles( secondaryFiles );
-        File tempMainDescriptor = null;
-        try
-        {
-            tempMainDescriptor = createTempFile( "main", DESCRIPTOR_SUFFIX );
-            Files.asCharSink( tempMainDescriptor, StandardCharsets.UTF_8 ).write( content );
-            try
-            {
-                // Set language version for descriptor source files
-                for ( SourceFile sourceFile : sourceFiles )
-                {
-                    if( sourceFile.getType() == DescriptorLanguage.FileType.DOCKSTORE_WDL )
-                    {
-                        sourceFile.getMetadata().setTypeVersion( getLanguageVersion( sourceFile.getAbsolutePath(), sourceFiles ).orElse( null ) );
-                    }
-                }
-                version.setDescriptorTypeVersionsFromSourceFiles( sourceFiles );
-
-                List<Map<String, String>> metadata = wdlBridge.getMetadata( tempMainDescriptor.getAbsolutePath(), filepath );
-                Queue<String> authors = new LinkedList<>();
-                Queue<String> emails = new LinkedList<>();
-                Set<Author> newAuthors = new HashSet<>();
-                final String[] mainDescription = { null };
-
-                metadata.forEach( metaBlock -> {
-                    String author = metaBlock.get( "author" );
-                    String[] callAuthors = author != null ? author.split( "," ) : null;
-                    if( callAuthors != null )
-                    {
-                        for ( String callAuthor : callAuthors )
-                        {
-                            authors.add( callAuthor.trim() );
-                        }
-                    }
-
-                    String email = metaBlock.get( "email" );
-                    String[] callEmails = email != null ? email.split( "," ) : null;
-                    if( callEmails != null )
-                    {
-                        for ( String callEmail : callEmails )
-                        {
-                            emails.add( callEmail.trim() );
-                        }
-                    }
-                    if( !authors.isEmpty() )
-                    {
-                        // Only set emails for authors if every author has an email.
-                        // Otherwise, ignore emails because we don't know which email belongs to which author
-                        if( authors.size() == emails.size() )
-                        {
-                            while ( !authors.isEmpty() )
-                            {
-                                Author newAuthor = new Author( authors.remove() );
-                                newAuthor.setEmail( emails.remove() );
-                                newAuthors.add( newAuthor );
-                            }
-                        }
-                        else
-                        {
-                            while ( !authors.isEmpty() )
-                            {
-                                Author newAuthor = new Author( authors.remove() );
-                                newAuthors.add( newAuthor );
-                            }
-                            emails.clear();
-                        }
-                    }
-
-                    String description = metaBlock.get( "description" );
-                    if( description != null && !description.isBlank() )
-                    {
-                        mainDescription[0] = description;
-                    }
-                } );
-
-                // Add authors from descriptor
-                for ( Author author : newAuthors )
-                {
-                    version.addAuthor( author );
-                }
-
-                if( !Strings.isNullOrEmpty( mainDescription[0] ) )
-                {
-                    version.setDescriptionAndDescriptionSource( mainDescription[0], DescriptionSource.DESCRIPTOR );
-                }
-            }
-            catch (Exception /*WdlParser.SyntaxError*/ ex)
-            {
-                LOG.error( "Unable to parse WDL file " + filepath, ex );
-                Map<String, String> validationMessageObject = new HashMap<>();
-                String errorMessage = "WDL file is malformed or missing, cannot extract metadata. " + ex.getMessage();
-                errorMessage = getUnsupportedWDLVersionErrorString( content ).orElse( errorMessage );
-                validationMessageObject.put( filepath, errorMessage );
-                version.addOrUpdateValidation( new Validation( DescriptorLanguage.FileType.DOCKSTORE_WDL, false, validationMessageObject ) );
-                version.setDescriptionAndDescriptionSource( null, null );
-                version.getAuthors().clear();
-                version.getOrcidAuthors().clear();
-                return version;
-            }
-            catch (StackOverflowError error)
-            {
-                throw createStackOverflowThrowable( error );
-            }
-        }
-        catch (IOException e)
-        {
-            throw new CustomLoggedException( e.getMessage() );
-        }
-        finally
-        {
-            FileUtils.deleteQuietly( tempMainDescriptor );
-        }
-        return version;
-    }
+    //    @Override
+    //    public WorkflowVersion parseWorkflowContent(String filepath, String content, Set<SourceFile> sourceFiles, WorkflowVersion version)
+    //    {
+    //        Optional<String> optValidationMessageObject = reportValidationForLocalRecursiveImports( content, sourceFiles, filepath );
+    //        if( optValidationMessageObject.isPresent() )
+    //        {
+    //            Map<String, String> validationMessageObject = new HashMap<>();
+    //            validationMessageObject.put( filepath, optValidationMessageObject.get() );
+    //            version.addOrUpdateValidation( new Validation( DescriptorLanguage.FileType.DOCKSTORE_WDL, false, validationMessageObject ) );
+    //            return version;
+    //        }
+    //
+    //        WdlBridge wdlBridge = new WdlBridge();
+    //        final Map<String, String> secondaryFiles = sourceFiles.stream().collect( Collectors.toMap( SourceFile::getAbsolutePath, SourceFile::getContent ) );
+    //        wdlBridge.setSecondaryFiles( secondaryFiles );
+    //        File tempMainDescriptor = null;
+    //        try
+    //        {
+    //            tempMainDescriptor = createTempFile( "main", DESCRIPTOR_SUFFIX );
+    //            Files.asCharSink( tempMainDescriptor, StandardCharsets.UTF_8 ).write( content );
+    //            try
+    //            {
+    //                // Set language version for descriptor source files
+    //                for ( SourceFile sourceFile : sourceFiles )
+    //                {
+    //                    if( sourceFile.getType() == DescriptorLanguage.FileType.DOCKSTORE_WDL )
+    //                    {
+    //                        sourceFile.getMetadata().setTypeVersion( getLanguageVersion( sourceFile.getAbsolutePath(), sourceFiles ).orElse( null ) );
+    //                    }
+    //                }
+    //                version.setDescriptorTypeVersionsFromSourceFiles( sourceFiles );
+    //
+    //                List<Map<String, String>> metadata = wdlBridge.getMetadata( tempMainDescriptor.getAbsolutePath(), filepath );
+    //                Queue<String> authors = new LinkedList<>();
+    //                Queue<String> emails = new LinkedList<>();
+    //                Set<Author> newAuthors = new HashSet<>();
+    //                final String[] mainDescription = { null };
+    //
+    //                metadata.forEach( metaBlock -> {
+    //                    String author = metaBlock.get( "author" );
+    //                    String[] callAuthors = author != null ? author.split( "," ) : null;
+    //                    if( callAuthors != null )
+    //                    {
+    //                        for ( String callAuthor : callAuthors )
+    //                        {
+    //                            authors.add( callAuthor.trim() );
+    //                        }
+    //                    }
+    //
+    //                    String email = metaBlock.get( "email" );
+    //                    String[] callEmails = email != null ? email.split( "," ) : null;
+    //                    if( callEmails != null )
+    //                    {
+    //                        for ( String callEmail : callEmails )
+    //                        {
+    //                            emails.add( callEmail.trim() );
+    //                        }
+    //                    }
+    //                    if( !authors.isEmpty() )
+    //                    {
+    //                        // Only set emails for authors if every author has an email.
+    //                        // Otherwise, ignore emails because we don't know which email belongs to which author
+    //                        if( authors.size() == emails.size() )
+    //                        {
+    //                            while ( !authors.isEmpty() )
+    //                            {
+    //                                Author newAuthor = new Author( authors.remove() );
+    //                                newAuthor.setEmail( emails.remove() );
+    //                                newAuthors.add( newAuthor );
+    //                            }
+    //                        }
+    //                        else
+    //                        {
+    //                            while ( !authors.isEmpty() )
+    //                            {
+    //                                Author newAuthor = new Author( authors.remove() );
+    //                                newAuthors.add( newAuthor );
+    //                            }
+    //                            emails.clear();
+    //                        }
+    //                    }
+    //
+    //                    String description = metaBlock.get( "description" );
+    //                    if( description != null && !description.isBlank() )
+    //                    {
+    //                        mainDescription[0] = description;
+    //                    }
+    //                } );
+    //
+    //                // Add authors from descriptor
+    //                for ( Author author : newAuthors )
+    //                {
+    //                    version.addAuthor( author );
+    //                }
+    //
+    //                if( !Strings.isNullOrEmpty( mainDescription[0] ) )
+    //                {
+    //                    version.setDescriptionAndDescriptionSource( mainDescription[0], DescriptionSource.DESCRIPTOR );
+    //                }
+    //            }
+    //            catch (Exception /*WdlParser.SyntaxError*/ ex)
+    //            {
+    //                LOG.error( "Unable to parse WDL file " + filepath, ex );
+    //                Map<String, String> validationMessageObject = new HashMap<>();
+    //                String errorMessage = "WDL file is malformed or missing, cannot extract metadata. " + ex.getMessage();
+    //                //errorMessage = getUnsupportedWDLVersionErrorString( content ).orElse( errorMessage );
+    //                validationMessageObject.put( filepath, errorMessage );
+    //                version.addOrUpdateValidation( new Validation( DescriptorLanguage.FileType.DOCKSTORE_WDL, false, validationMessageObject ) );
+    //                version.setDescriptionAndDescriptionSource( null, null );
+    //                version.getAuthors().clear();
+    //                version.getOrcidAuthors().clear();
+    //                return version;
+    //            }
+    //            catch (StackOverflowError error)
+    //            {
+    //                throw createStackOverflowThrowable( error );
+    //            }
+    //        }
+    //        catch (IOException e)
+    //        {
+    //            throw new CustomLoggedException( e.getMessage() );
+    //        }
+    //        finally
+    //        {
+    //            FileUtils.deleteQuietly( tempMainDescriptor );
+    //        }
+    //        return version;
+    //    }
 
     /**
      * A common helper method for checking for local recursive imports
@@ -369,11 +374,12 @@ public class WDLHandler implements LanguageHandlerInterface {
                     wdlBridge.validateWorkflow( tempMainDescriptor.getAbsolutePath(), primaryDescriptor.get().getAbsolutePath() );
                 }
             }
-            catch (/*WdlParser.SyntaxError | */IllegalArgumentException e)
+            catch (/*WdlParser.SyntaxError | */Exception e)
             {
                 if( tempMainDescriptor != null )
                 {
-                    validationMessageObject.put( primaryDescriptorFilePath, getUnsupportedWDLVersionErrorString( tempMainDescriptor.getAbsolutePath() ).orElse( e.getMessage() ) );
+                    String errorMessage = "WDL file is malformed or missing: " + e.getMessage();
+                    validationMessageObject.put( primaryDescriptorFilePath, errorMessage );
                 }
                 else
                 {
@@ -381,23 +387,23 @@ public class WDLHandler implements LanguageHandlerInterface {
                 }
                 return new VersionTypeValidation( false, validationMessageObject );
             }
-            catch (CustomLoggedException e)
-            {
-                throw e;
-            }
-            catch (Exception e)
-            {
-                LOG.error( "Unhandled exception", e );
-                throw new CustomLoggedException( e.getMessage() );
-            }
-            catch (StackOverflowError error)
-            {
-                throw createStackOverflowThrowable( error );
-            }
-            finally
-            {
-                FileUtils.deleteQuietly( tempMainDescriptor );
-            }
+            //            catch (CustomLoggedException e)
+            //            {
+            //                throw e;
+            //            }
+            //            catch (Exception e)
+            //            {
+            //                LOG.error( "Unhandled exception", e );
+            //                throw new CustomLoggedException( e.getMessage() );
+            //            }
+            //            catch (StackOverflowError error)
+            //            {
+            //                throw createStackOverflowThrowable( error );
+            //            }
+            //            finally
+            //            {
+            //                FileUtils.deleteQuietly( tempMainDescriptor );
+            //            }
         }
         else
         {
@@ -535,6 +541,31 @@ public class WDLHandler implements LanguageHandlerInterface {
     public List<Map<String, String>> getTools(String mainDescriptorPath, String mainDescriptor, Set<SourceFile> secondarySourceFiles, Type type)
     {
         List<Map<String, String>> result = new ArrayList<>();
+        ScriptInfo wdlScriptInfo = null;
+        try
+        {
+            wdlScriptInfo = new WDLImporter().generateScriptInfo( mainDescriptor, "test" );
+        }
+        catch (Exception e)
+        {
+            LOG.error( "Error parsing WDL " + mainDescriptorPath + " " + e.getMessage() );
+            return result;
+        }
+
+        for ( String taskName : wdlScriptInfo.getTaskNames() )
+        {
+            TaskInfo taskInfo = wdlScriptInfo.getTask( taskName );
+            String docker = taskInfo.getRuntime().get( "docker" );
+            if( docker != null )
+            {
+                Map<String, String> dataToolEntry = new HashMap<>();
+                dataToolEntry.put( "docker", docker );
+                String imageName = docker;
+                DockerSpecifier dockerSpecifier = LanguageHandlerInterface.determineImageSpecifier( imageName, DockerImageReference.LITERAL );
+                dataToolEntry.put( "specifier", dockerSpecifier.name() );
+                result.add( dataToolEntry );
+            }
+        }
         return result;
     }
     //
@@ -695,120 +726,120 @@ public class WDLHandler implements LanguageHandlerInterface {
         return semVer.greaterThan( com.github.zafarkhaja.semver.Version.valueOf( enhanceSemanticVersionString( LATEST_SUPPORTED_WDL_VERSION ) ) );
     }
 
-    /**
-     * Get the version from the WDL descriptor file content. If no version is found, return the default WDL version
-     * defined by the WDL spec. If the version is invalid, return Optional.empty()
-     *
-     * @param primaryDescriptorPath The absolute path of the descriptor SourceFile to get the 'version' from
-     * @param sourceFiles A set of SourceFiles containing the primary descriptor SourceFile and any imports
-     * @return
-     */
-    public static Optional<String> getLanguageVersion(String primaryDescriptorPath, Set<SourceFile> sourceFiles)
-    {
-        WdlBridge wdlBridge = new WdlBridge();
+    //    /**
+    //     * Get the version from the WDL descriptor file content. If no version is found, return the default WDL version
+    //     * defined by the WDL spec. If the version is invalid, return Optional.empty()
+    //     *
+    //     * @param primaryDescriptorPath The absolute path of the descriptor SourceFile to get the 'version' from
+    //     * @param sourceFiles A set of SourceFiles containing the primary descriptor SourceFile and any imports
+    //     * @return
+    //     */
+    //    public static Optional<String> getLanguageVersion(String primaryDescriptorPath, Set<SourceFile> sourceFiles)
+    //    {
+    //        WdlBridge wdlBridge = new WdlBridge();
+    //
+    //        Optional<SourceFile> primaryDescriptor = sourceFiles.stream().filter( sourceFile -> sourceFile.getAbsolutePath().equals( primaryDescriptorPath ) ).findFirst();
+    //        if( primaryDescriptor.isEmpty() )
+    //        {
+    //            return Optional.empty();
+    //        }
+    //
+    //        final String primaryDescriptorContent = primaryDescriptor.get().getContent();
+    //        Map<String, String> secondaryFiles = new HashMap<>();
+    //        sourceFiles.stream().filter( sourceFile -> !sourceFile.getAbsolutePath().equals( primaryDescriptorPath ) ).forEach( descriptorSourceFile -> {
+    //            secondaryFiles.put( descriptorSourceFile.getAbsolutePath(), descriptorSourceFile.getContent() );
+    //        } );
+    //        wdlBridge.setSecondaryFiles( secondaryFiles );
+    //
+    //        File tempMainDescriptor = null;
+    //        try
+    //        {
+    //            tempMainDescriptor = createTempFile( "main", DESCRIPTOR_SUFFIX );
+    //            Files.asCharSink( tempMainDescriptor, StandardCharsets.UTF_8 ).write( primaryDescriptorContent );
+    //            // It's possible for isVersionValid to be false for a valid 'version' so we must double-check by trying to find a 'version' string in the content
+    //            // Ex: Cromwell doesn't support WDL 1.1 so a 'version 1.1' workflow will return false for isVersionValid
+    //            final boolean isVersionValid = wdlBridge.isVersionFieldValid( tempMainDescriptor.getAbsolutePath(), primaryDescriptorPath );
+    //            Optional<String> parsedVersionString = getSemanticVersionString( primaryDescriptorContent );
+    //
+    //            if( parsedVersionString.isEmpty() )
+    //            {
+    //                if( isVersionValid )
+    //                {
+    //                    // Return default version if there's no parsed 'version' field and the version is valid (no 'version' is valid)
+    //                    return Optional.of( DEFAULT_WDL_VERSION );
+    //                }
+    //                // If there's no parsed 'version' string and the version isn't valid, then there's likely something wrong with the version
+    //                return Optional.empty();
+    //            }
+    //            return parsedVersionString;
+    //        }
+    //        catch (IOException e)
+    //        {
+    //            LOG.error( "Error creating temporary file for descriptor {}", primaryDescriptorPath, e );
+    //            throw new CustomLoggedException( e.getMessage() );
+    //        }
+    //        catch (StackOverflowError error)
+    //        {
+    //            throw createStackOverflowThrowable( error );
+    //        }
+    //        finally
+    //        {
+    //            // Delete the temp directory and its contents
+    //            FileUtils.deleteQuietly( tempMainDescriptor );
+    //        }
+    //    }
 
-        Optional<SourceFile> primaryDescriptor = sourceFiles.stream().filter( sourceFile -> sourceFile.getAbsolutePath().equals( primaryDescriptorPath ) ).findFirst();
-        if( primaryDescriptor.isEmpty() )
-        {
-            return Optional.empty();
-        }
+    //    /**
+    //     * Get the semantic version string from the WDL file
+    //     * 
+    //     * @param descriptorContent the file content of the primary WDL descriptor
+    //     * @return the semantic version string, e.g. '1.0', which should be in the first code line, e.g. 'version 1.0' or
+    //     * 'draft-3'
+    //     */
+    //    public static Optional<String> getSemanticVersionString(String descriptorContent)
+    //    {
+    //        WdlBridge wdlBridge = new WdlBridge();
+    //        Optional<String> firstCodeLine = wdlBridge.getFirstCodeLine( descriptorContent );
+    //
+    //        // https://www.scala-lang.org/files/archive/api/2.13.x/scala/jdk/javaapi/OptionConverters$.html
+    //        // The WDL specification says that WDL descriptors from now on must have
+    //        // a version string as the first line, e.g. 'version 1.0' or 'version draft-3'
+    //        // https://github.com/openwdl/wdl/blob/main/versions/1.0/SPEC.md#versioning
+    //        // however some very old WDL scripts may not have a version string line
+    //        // Check to see if we found the first line of code and that it has two parts
+    //        if( firstCodeLine.isPresent() )
+    //        {
+    //            String wdlCommentSymbol = "#";
+    //            String semanticVersionLine = firstCodeLine.get();
+    //            // Remove comment in lines like 'version 1.0 # this is a comment'
+    //            String semanticVersionStringWithoutComments = semanticVersionLine.split( wdlCommentSymbol )[0];
+    //            String[] semanticVersionStringArray = semanticVersionStringWithoutComments.split( "\\s+" );
+    //            // If there is a version string line the first part should be 'version'
+    //            if( semanticVersionStringArray[0].equals( "version" ) && semanticVersionStringArray.length == 2 )
+    //            {
+    //                // Return the version such as '1.0' or 'draft-3'
+    //                // Note: if the programmer made a mistake this could be some
+    //                // bogus string but we will have semver check it later
+    //                return Optional.of( semanticVersionStringArray[1] );
+    //            }
+    //        }
+    //        // otherwise return nothing
+    //        return Optional.empty();
+    //    }
 
-        final String primaryDescriptorContent = primaryDescriptor.get().getContent();
-        Map<String, String> secondaryFiles = new HashMap<>();
-        sourceFiles.stream().filter( sourceFile -> !sourceFile.getAbsolutePath().equals( primaryDescriptorPath ) ).forEach( descriptorSourceFile -> {
-            secondaryFiles.put( descriptorSourceFile.getAbsolutePath(), descriptorSourceFile.getContent() );
-        } );
-        wdlBridge.setSecondaryFiles( secondaryFiles );
-
-        File tempMainDescriptor = null;
-        try
-        {
-            tempMainDescriptor = createTempFile( "main", DESCRIPTOR_SUFFIX );
-            Files.asCharSink( tempMainDescriptor, StandardCharsets.UTF_8 ).write( primaryDescriptorContent );
-            // It's possible for isVersionValid to be false for a valid 'version' so we must double-check by trying to find a 'version' string in the content
-            // Ex: Cromwell doesn't support WDL 1.1 so a 'version 1.1' workflow will return false for isVersionValid
-            final boolean isVersionValid = wdlBridge.isVersionFieldValid( tempMainDescriptor.getAbsolutePath(), primaryDescriptorPath );
-            Optional<String> parsedVersionString = getSemanticVersionString( primaryDescriptorContent );
-
-            if( parsedVersionString.isEmpty() )
-            {
-                if( isVersionValid )
-                {
-                    // Return default version if there's no parsed 'version' field and the version is valid (no 'version' is valid)
-                    return Optional.of( DEFAULT_WDL_VERSION );
-                }
-                // If there's no parsed 'version' string and the version isn't valid, then there's likely something wrong with the version
-                return Optional.empty();
-            }
-            return parsedVersionString;
-        }
-        catch (IOException e)
-        {
-            LOG.error( "Error creating temporary file for descriptor {}", primaryDescriptorPath, e );
-            throw new CustomLoggedException( e.getMessage() );
-        }
-        catch (StackOverflowError error)
-        {
-            throw createStackOverflowThrowable( error );
-        }
-        finally
-        {
-            // Delete the temp directory and its contents
-            FileUtils.deleteQuietly( tempMainDescriptor );
-        }
-    }
-
-    /**
-     * Get the semantic version string from the WDL file
-     * 
-     * @param descriptorContent the file content of the primary WDL descriptor
-     * @return the semantic version string, e.g. '1.0', which should be in the first code line, e.g. 'version 1.0' or
-     * 'draft-3'
-     */
-    public static Optional<String> getSemanticVersionString(String descriptorContent)
-    {
-        WdlBridge wdlBridge = new WdlBridge();
-        Optional<String> firstCodeLine = wdlBridge.getFirstCodeLine( descriptorContent );
-
-        // https://www.scala-lang.org/files/archive/api/2.13.x/scala/jdk/javaapi/OptionConverters$.html
-        // The WDL specification says that WDL descriptors from now on must have
-        // a version string as the first line, e.g. 'version 1.0' or 'version draft-3'
-        // https://github.com/openwdl/wdl/blob/main/versions/1.0/SPEC.md#versioning
-        // however some very old WDL scripts may not have a version string line
-        // Check to see if we found the first line of code and that it has two parts
-        if( firstCodeLine.isPresent() )
-        {
-            String wdlCommentSymbol = "#";
-            String semanticVersionLine = firstCodeLine.get();
-            // Remove comment in lines like 'version 1.0 # this is a comment'
-            String semanticVersionStringWithoutComments = semanticVersionLine.split( wdlCommentSymbol )[0];
-            String[] semanticVersionStringArray = semanticVersionStringWithoutComments.split( "\\s+" );
-            // If there is a version string line the first part should be 'version'
-            if( semanticVersionStringArray[0].equals( "version" ) && semanticVersionStringArray.length == 2 )
-            {
-                // Return the version such as '1.0' or 'draft-3'
-                // Note: if the programmer made a mistake this could be some
-                // bogus string but we will have semver check it later
-                return Optional.of( semanticVersionStringArray[1] );
-            }
-        }
-        // otherwise return nothing
-        return Optional.empty();
-    }
-
-    public static Optional<String> getUnsupportedWDLVersionErrorString(String primaryDescriptorContent)
-    {
-        Optional<String> semVersionString = getSemanticVersionString( primaryDescriptorContent );
-        if( semVersionString.isPresent() && versionIsGreaterThanCurrentlySupported( semVersionString.get() ) )
-        {
-            return Optional.of( "Dockstore only supports up to  WDL version " + LATEST_SUPPORTED_WDL_VERSION + ". The version of" + " this workflow is " + semVersionString.get()
-                    + ". Dockstore cannot verify or parse this WDL version." );
-        }
-        else
-        {
-            return Optional.empty();
-        }
-    }
+    //    public static Optional<String> getUnsupportedWDLVersionErrorString(String primaryDescriptorContent)
+    //    {
+    //        Optional<String> semVersionString = getSemanticVersionString( primaryDescriptorContent );
+    //        if( semVersionString.isPresent() && versionIsGreaterThanCurrentlySupported( semVersionString.get() ) )
+    //        {
+    //            return Optional.of( "Dockstore only supports up to  WDL version " + LATEST_SUPPORTED_WDL_VERSION + ". The version of" + " this workflow is " + semVersionString.get()
+    //                    + ". Dockstore cannot verify or parse this WDL version." );
+    //        }
+    //        else
+    //        {
+    //            return Optional.empty();
+    //        }
+    //    }
 
     //    /**
     //     * Returns a map of file input names to types. For example:
@@ -970,5 +1001,12 @@ public class WDLHandler implements LanguageHandlerInterface {
     }
     record FileInputs(String name, String type, Set<String> values)
     {
+    }
+
+    @Override
+    public List<Map<String, String>> getTools(String repositoryId, String mainDescriptorPath, String mainDescriptor, Set<SourceFile> secondarySourceFiles, Type type)
+    {
+        // TODO Auto-generated method stub
+        return LanguageHandlerInterface.super.getTools( repositoryId, mainDescriptorPath, mainDescriptor, secondarySourceFiles, type );
     }
 }

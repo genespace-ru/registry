@@ -1,12 +1,13 @@
 package ru.genespace.dockstore.languages;
 
+import java.io.File;
 import java.io.StringReader;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
+import biouml.plugins.wdl.diagram.WDLImporter;
 import biouml.plugins.wdl.parser.AstStart;
 import biouml.plugins.wdl.parser.WDLParser;
+import ru.biosoft.util.ApplicationUtils;
 
 //This is STUB class for WDL validation. 
 //TODO: Use biouml.plugins.wdl reading and validation in auto-generated methods
@@ -14,20 +15,17 @@ import biouml.plugins.wdl.parser.WDLParser;
 public class WdlBridge
 {
 
+    //Map of path - content of secondary files, may be needed when parsing WDL
+    private Map<String, String> secondaryFiles;
+    private String version = null;
+
     public WdlBridge()
     {
 
     }
     public void setSecondaryFiles(Map<String, String> secondaryFiles)
     {
-        // TODO Auto-generated method stub
-
-    }
-
-    public List<Map<String, String>> getMetadata(String absolutePath, String filepath)
-    {
-        // TODO Auto-generated method stub
-        return null;
+        this.secondaryFiles = secondaryFiles;
     }
 
     public void validateTool(String absolutePath, String primaryDescriptorFilePath)
@@ -36,22 +34,24 @@ public class WdlBridge
 
     }
 
-    public void validateWorkflow(String absolutePath, String absolutePath2)
+    public void validateWorkflow(String absolutePath, String absolutePath2) throws Exception
     {
-        // TODO Auto-generated method stub
-
+        File wdlFile = new File( absolutePath );
+        String content = WDLImporter.processContent( ApplicationUtils.readAsString( wdlFile ) );
+        WDLParser parser = new WDLParser();
+        AstStart start = parser.parse( new StringReader( content ) );
+        version = parser.getVersion();
     }
 
-    public boolean isVersionFieldValid(String absolutePath, String primaryDescriptorPath)
-    {
-        // TODO Auto-generated method stub
-        return false;
-    }
+    //    public boolean isVersionFieldValid(String absolutePath, String primaryDescriptorPath)
+    //    {
+    //        return true;
+    //    }
 
-    public Optional<String> getFirstCodeLine(String descriptorContent)
-    {
-        // TODO Auto-generated method stub
-        return null;
-    }
+    //    public Optional<String> getFirstCodeLine(String descriptorContent)
+    //    {
+    //
+    //        return null;
+    //    }
 
 }

@@ -86,7 +86,10 @@ public interface LanguageHandlerInterface {
     //     * @param version the version to modify
     //     * @return
     //     */
-    WorkflowVersion parseWorkflowContent(String filepath, String content, Set<SourceFile> sourceFiles, WorkflowVersion version);
+    default WorkflowVersion parseWorkflowContent(String filepath, String content, Set<SourceFile> sourceFiles, WorkflowVersion version)
+    {
+        return version;
+    }
 
     /**
      * Validates a workflow set for the workflow described by with primaryDescriptorFilePath
