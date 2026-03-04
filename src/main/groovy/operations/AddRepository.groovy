@@ -4,10 +4,12 @@ import java.sql.Timestamp
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.Map.Entry
+import java.util.logging.Level
+import java.util.logging.Logger
 
 import javax.json.JsonObject
 import javax.json.JsonString
-
+import org.json.JSONObject
 import com.developmentontheedge.be5.databasemodel.util.DpsUtils
 import com.developmentontheedge.be5.server.model.Base64File
 import com.developmentontheedge.be5.server.operations.support.GOperationSupport
@@ -15,6 +17,7 @@ import com.developmentontheedge.be5.server.operations.support.GOperationSupport
 import com.developmentontheedge.be5.operation.OperationResult
 
 import ru.genespace.dockstore.SourceFile
+import ru.genespace.dockstore.Validation
 import ru.genespace.dockstore.Workflow
 import ru.genespace.dockstore.WorkflowVersion
 import ru.genespace.dockstore.yaml.DockstoreYaml12
@@ -22,11 +25,14 @@ import ru.genespace.dockstore.yaml.DockstoreYamlHelper
 import ru.genespace.dockstore.yaml.YamlWorkflow
 import ru.genespace.github.GitHubManager
 import ru.genespace.github.GitHubRepository
+import ru.genespace.webserver.WebserverController
 import ru.genespace.dockstore.DescriptorLanguage
 import ru.genespace.dockstore.Image
 
 class AddRepository extends GOperationSupport {
     Map<String, Object> presets
+
+    private static final Logger log = Logger.getLogger( AddRepository.class.getName() )
 
     @Override
     Object getParameters(Map<String, Object> presetValues) throws Exception {
@@ -88,6 +94,7 @@ class AddRepository extends GOperationSupport {
                 topic = topic.substring(0,200 )
             def wflID = database.resources << [repository: repoID, name: wflName, type: "workflow", language: lang, topic: topic]
             for(WorkflowVersion version: versions) {
+                def versionName = version.getName()!= null ? version.getName() : "name is unset"
                 /* Versions
                  repository: repositories.ID
                  name: branch or tag name
@@ -97,11 +104,10 @@ class AddRepository extends GOperationSupport {
                  doi: DOI for this version of Git repository 
                  */
                 //TODO: doi is not supported now
-                def versionDB = database.versions.getBy( [repository: repoID, name: version.getName(), commit: version.getCommitID(),
+                def versionDB = database.versions.getBy( [repository: repoID, name: versionName, commit: version.getCommitID(),
                     type: version.getReferenceType().toString()])
                 def versionID = versionDB ? versionDB.$ID : null
                 if(versionID == null) {
-                    def versionName = version.getName()!= null ? version.getName() : "name is unset";
                     versionID = database.versions << [repository: repoID, name: versionName, commit: version.getCommitID(),
                         dateModified: getDateTime(version.getLastModified()), type: version.getReferenceType().toString()]
                 }
@@ -122,6 +128,9 @@ class AddRepository extends GOperationSupport {
                 def primaryDescriptorPath = version.getWorkflowPath()
                 def readmePath = version.getReadMePath()
                 def valid = version.isValid() ? 'yes' : 'no'
+                if(!version.isValid()) {
+                    log.log(Level.WARNING, createValidationMessages(version))
+                }
                 database.resource2versions << [resource: wflID, version:versionID, valid: version.isValid() ? 'yes' : 'no', primaryDescriptorPath: primaryDescriptorPath, readMePath: readmePath ]
 
                 for(Image image: version.getImages()) {
@@ -138,6 +147,31 @@ class AddRepository extends GOperationSupport {
             }
         }
         setResult(OperationResult.finished())
+    }
+
+    /**
+     * Prints out all of the invalid validations
+     * Used for returning error messages on attempting to save
+     * @param version version of interest
+     * @return String containing all invalid validation messages
+     */
+    private String createValidationMessages(WorkflowVersion version) {
+        StringBuilder result = new StringBuilder();
+        result.append("Version was not validates due to the following error(s): ");
+
+        for (Validation versionValidation : version.getValidations()) {
+            if (!versionValidation.isValid() && versionValidation.getMessage() != null) {
+                JSONObject obj = new JSONObject(versionValidation.getMessage())
+                Iterator<?> keys = obj.keys();
+                while(keys.hasNext()) {
+                    String name = keys.next().toString()
+                    String value = obj.getString(name )
+                    result.append(name + ": " + value + " ")
+                }
+            }
+        }
+
+        return result.toString()
     }
 
     private Timestamp getDateTime(Date date) {
