@@ -36,7 +36,7 @@ resource2versions:
     - valid:
         type: ENUM(yes, no) 
         canBeNull: true
-        doc: a version is valid if the descriptor file(s) have been successfully validated         
+        doc: a version is valid if the descriptor file(s) have been successfully validated        
     - doi:
         type: VARCHAR(50)
         canBeNull: true
@@ -44,8 +44,11 @@ resource2versions:
     - snapshot:
         type: ENUM(yes, no) 
         defaultValue: "'no'"
-        doc: indicates that this version of the resource is snapshot 
-                    
+        doc: indicates that this version of the resource is snapshot
+    - defaultVersion:
+        type: BOOL
+        defaultValue: '''no'''
+        doc: indicates whether this version is default for the resource
     indices:
     - IDX_RESOURCE:
         columns: resource

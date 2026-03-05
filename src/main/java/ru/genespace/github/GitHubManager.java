@@ -137,7 +137,8 @@ public class GitHubManager
                                 break;
                         }
                         List<YamlAuthor> yamlAuthors = yamlWorkflow.getAuthors();
-                        WorkflowVersion version = repo.addDockstoreYmlVersionToWorkflow( repositoryId, referenceStr, file, workflow, true, yamlAuthors );
+                        WorkflowVersion version = repo.addDockstoreYmlVersionToWorkflow( repositoryId, referenceStr, file, workflow, yamlWorkflow.getLatestTagAsDefault(),
+                                yamlAuthors );
                         if( yamlWorkflow.getReadMePath() != null )
                         {
                             version.setReadMePath( yamlWorkflow.getReadMePath() );
@@ -167,7 +168,8 @@ public class GitHubManager
                                 break;
                         }
                         List<YamlAuthor> yamlAuthors = yamlNotebook.getAuthors();
-                        WorkflowVersion version = repo.addDockstoreYmlVersionToWorkflow( repositoryId, referenceStr, file, workflow, true, yamlAuthors );
+                        WorkflowVersion version = repo.addDockstoreYmlVersionToWorkflow( repositoryId, referenceStr, file, workflow, yamlNotebook.getLatestTagAsDefault(),
+                                yamlAuthors );
                         version.setName( branchName );
                     }
 
@@ -189,7 +191,8 @@ public class GitHubManager
                                 break;
                         }
                         List<YamlAuthor> yamlAuthors = yamlTool.getAuthors();
-                        WorkflowVersion version = repo.addDockstoreYmlVersionToWorkflow( repositoryId, referenceStr, file, workflow, true, yamlAuthors );
+                        WorkflowVersion version = repo.addDockstoreYmlVersionToWorkflow( repositoryId, referenceStr, file, workflow, yamlTool.getLatestTagAsDefault(),
+                                yamlAuthors );
                         version.setName( branchName );
                     }
                 }

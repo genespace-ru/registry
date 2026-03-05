@@ -131,7 +131,10 @@ class AddRepository extends GOperationSupport {
                 if(!version.isValid()) {
                     log.log(Level.WARNING, createValidationMessages(version))
                 }
-                database.resource2versions << [resource: wflID, version:versionID, valid: version.isValid() ? 'yes' : 'no', primaryDescriptorPath: primaryDescriptorPath, readMePath: readmePath ]
+                //set first version as default since it is necessary
+                def isDefaultVersion = (workflow.getActualDefaultVersion() == null || versionName.equals(workflow.getActualDefaultVersion().getName())) ? 'yes' : 'no'
+                database.resource2versions << [resource: wflID, version:versionID, valid: version.isValid() ? 'yes' : 'no', primaryDescriptorPath: primaryDescriptorPath,
+                    readMePath: readmePath, defaultVersion: isDefaultVersion]
 
                 for(Image image: version.getImages()) {
                     def dockerDB = database.docker.getBy( [image: image.getImageID()])

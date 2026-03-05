@@ -49,8 +49,7 @@ versions:
       code: |-
         SELECT
           v.ID,
-          v.name,
-          v.valid,
+          v.name
         FROM versions v
         ORDER BY dateModified DESC
   - ForResourceCard:
@@ -61,19 +60,20 @@ versions:
       code: |-
         SELECT
           v.ID,
-          v.ID AS "___verID",
-          r.ID AS "___resID",
-          v.name AS "Name",
-          CASE WHEN v.ID == <parameter:___verID /> THEN ''
-          ELSE '<link table="resources" queryName="Resource card" using="___resID,___verID" columns="ID,___verID" />'  END AS ";Name",
-          COALESCE('<a target="_blank" href="https://github.com/' || repos.url || '/commit/' || v.commit || '">Open in github</a>', '') AS "Git Reference",
+          v.ID AS "___versID",
+          r.ID AS "___ressID",
+          CASE WHEN v.ID == <parameter:___verID /> THEN v.name
+          ELSE COALESCE('<a href="#!resourceCardPage/ID=' || r.ID || '/versionID=' || v.ID || '">' || v.name || '</a>') END AS "Name",
+          r2v.valid AS "Valid",
           r.language AS "Language",
-          r2v.valid,
           v.dateModified AS "Date Modified"
         FROM versions v
         JOIN resource2versions r2v ON r2v.version = v.ID
         JOIN repositories repos ON v.repository = repos.ID
         JOIN resources r ON r2v.resource = r.ID
-            WHERE r2v.resource = <parameter:___resID />
-            ORDER BY v.ID
+        WHERE (1=1)
+          <if parameter="___resID">
+              AND r.ID = <parameter:___resID/>
+          </if>
+        ORDER BY v.ID
           

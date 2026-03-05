@@ -15,7 +15,7 @@ const ResourceTabTableBox = ({ value }) => {
     return <div className="container">Нет данных для отображения</div>;
   }
 
-  const title = resource.PageTitle?.value || "AAA";
+  const title = resource.PageTitle?.value || "Title not set";
   be5.ui.setTitle(title);
 
   const urlParams = `webserver/web/content?repository=${resource.repository___.value}&version=${resource.version___.value}&filepath=${resource.readme___.value}&content=markdown`;
