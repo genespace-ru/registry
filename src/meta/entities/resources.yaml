@@ -115,11 +115,11 @@ resources:
         JOIN versions ver ON r2v.version = ver.ID
         WHERE 1 = 1
         <if parameter="ID">
-                AND r.ID = <parameter:ID/>
-            </if>
-            <if parameter="versionID">
-              AND r2v.version = <parameter:versionID/>
-            </if>
+            AND r.ID = <parameter:ID/>
+        </if>
+        <if parameter="versionID">
+            AND r2v.version = <parameter:versionID/>
+        </if>
   - ResourceTab:
       roles: '@AllRolesExceptGuest'
       invisible: true

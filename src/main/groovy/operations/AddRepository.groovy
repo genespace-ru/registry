@@ -143,9 +143,9 @@ class AddRepository extends GOperationSupport {
                         String url = image.getImageRegistry().getUrl()
                         dockerID = database.docker << [image: image.getImageID(), url: image.getImageURL()]
                     }
-                    def res2docker = database.resource2docker.getBy( [docker: dockerID, resource: wflID])
+                    def res2docker = database.resource2docker.getBy( [docker: dockerID, resource: wflID, version: versionID])
                     if(res2docker == null)
-                        database.resource2docker << [docker: dockerID, resource: wflID ]
+                        database.resource2docker << [docker: dockerID, resource: wflID, version: versionID ]
                 }
             }
         }

@@ -1,6 +1,6 @@
 resource2docker:
   type: collection
-  doc: Link between resources and docker images
+  doc: Link between resources with versions and docker images
   primaryKey: ID
   
   scheme:
@@ -13,10 +13,14 @@ resource2docker:
         type: KEYTYPE
         reference: resources.ID
         doc: resource
-    - docker:
+    - version:
         type: KEYTYPE
         reference: versions.ID
-        doc: version (branch or tag in Git repository)
+        doc: version
+    - docker:
+        type: KEYTYPE
+        reference: docker.ID
+        doc: docker image
                     
     indices:
     - IDX_RESOURCE_DOCKER:

@@ -49,4 +49,11 @@ docker:
           COALESCE('<a target="_blank" href="' || d.url || '">'|| d.image|| '</a>', '') AS "Link"
         FROM docker d
         JOIN resource2docker r2d ON r2d.docker = d.ID
-        JOIN resources r ON r2d.resource = r.ID          
+        JOIN resources r ON r2d.resource = r.ID
+        WHERE 1 = 1
+        <if parameter="___resID">
+            AND r.ID = <parameter:___resID/>
+        </if>
+        <if parameter="___verID">
+          AND r2d.version = <parameter:___verID/>
+        </if>          

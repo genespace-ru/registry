@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { be5, registerTableBox, processHashUrl, Navs } from 'be5-react';
+import React, { useState } from 'react';
+import { be5, registerTableBox, Navs } from 'be5-react';
 
 const ResourceCardTableBox = ({ value }) => {
   const resource = value?.data?.attributes?.rows?.[0];
@@ -10,6 +10,7 @@ const ResourceCardTableBox = ({ value }) => {
 
   const title = resource.PageTitle?.value || 'Без названия';
   be5.ui.setTitle(title);
+  
   const resourceId = resource.ID?.value;
   const versionId = resource.versionID?.value;
 
