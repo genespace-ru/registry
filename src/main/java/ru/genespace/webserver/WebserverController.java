@@ -1,21 +1,27 @@
 package ru.genespace.webserver;
 
 import java.awt.image.BufferedImage;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Array;
 import java.net.URL;
+import java.sql.PreparedStatement;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.servlet.http.HttpServletResponse;
 
 import com.developmentontheedge.be5.database.DbService;
 import com.developmentontheedge.be5.database.QRec;
+import com.developmentontheedge.be5.database.Transactional;
 import com.developmentontheedge.be5.server.servlet.support.BaseControllerSupport;
 import com.developmentontheedge.be5.web.Request;
 import com.developmentontheedge.be5.web.Response;
@@ -157,20 +163,32 @@ public class WebserverController extends BaseControllerSupport
         {
 
 
-            String version = arguments.get( "version" ).toString();
-            String resourceId = arguments.get( "resource" ).toString();
+            Long version = Long.parseLong( arguments.get( "version" ).toString() );
+            Long resourceId = Long.parseLong( arguments.get( "resource" ).toString() );
             QRec info = db.recordWithParams(
                     "SELECT r2v.primaryDescriptorPath AS primaryDescriptorPath, res.language AS language, repo.url AS repository, ver.name as reference FROM resource2versions r2v "
                             + "JOIN resources res ON res.ID=r2v.resource JOIN repositories repo ON repo.ID=res.repository JOIN versions ver ON ver.ID=r2v.version"
                             + " WHERE r2v.resource=? AND r2v.version=? ",
-                    Long.parseLong( resourceId ), Long.parseLong( version ) );
+                    resourceId, version );
             String primaryDescriptorPath = info.getString( "primaryDescriptorPath" );
             String shortType = info.getString( "language" );
             String repositoryId = info.getString( "repository" );
             String reference = info.getString( "reference" );
             if( reference == null )
                 reference = "main";
-
+            QRec imageRec = db.recordWithParams( "SELECT data FROM attachments WHERE resource=? AND version=? AND fileName=?", resourceId, version, primaryDescriptorPath );
+            if( imageRec != null && !imageRec.isEmpty() )
+            {
+                InputStream imageStream = imageRec.getBinaryStream( "data" );
+                BufferedImage imageObj = ImageIO.read( imageStream );
+                if( imageObj != null )
+                {
+                    resp.setContentType( "image/png" );
+                    ImageGenerator.encodeImage( (BufferedImage) imageObj, "PNG", out );
+                    return;
+                }
+            }
+            
             GitHubManager gitHubManager = getGithubManager();
             String workflowContent = gitHubManager.getWorkflowContent( repositoryId, reference, primaryDescriptorPath, shortType );
             if( workflowContent == null || workflowContent.isEmpty() )
@@ -199,6 +217,20 @@ public class WebserverController extends BaseControllerSupport
                 resp.setContentType( "image/png" );
                 BufferedImage image = DiagramImageGenerator.generateDiagramImage( diagram );
                 ImageGenerator.encodeImage( image, "PNG", out );
+                
+                TempFile diagramImageFile = TempFiles.file( "diagramImage" + reference );
+                ImageGenerator.encodeImage( image, "PNG", new FileOutputStream( diagramImageFile ) );
+                FileInputStream inputStream = new FileInputStream( diagramImageFile );
+                addImageToDB( resourceId, version, primaryDescriptorPath, inputStream );
+
+                //                db.insertRaw( "INSERT INTO attachments (resource, version, fileName, data) VALUES (?,?,?, ?)", resourceId, version,
+                //                        primaryDescriptorPath, inputStream );
+
+
+
+                //                statement.setBlob(1, inputStream);
+                //                
+                //                db.insertRaw( "INSERT INTO attachments (resource, version, fileName, data) VALUES (?,?,?, ?)", resourceId, version, primaryDescriptorPath, image );
             }
 
         }
@@ -210,6 +242,28 @@ public class WebserverController extends BaseControllerSupport
         {
             out.close();
         }
+    }
+
+    @Transactional
+    private void addImageToDB(Long resourceId, Long version, String primaryDescriptorPath, FileInputStream inputStream)
+    {
+        db.execute( conn -> {
+            boolean oldAC = conn.getAutoCommit();
+            conn.setAutoCommit( false );
+            try (PreparedStatement ps = conn.prepareStatement( "INSERT INTO attachments (resource, version, fileName, data) VALUES (?,?,?, ?)" ))
+            {
+                ps.setLong( 1, resourceId );
+                ps.setLong( 2, version );
+                ps.setString( 3, primaryDescriptorPath );
+                ps.setBinaryStream( 4, inputStream );
+
+                return ps.execute();
+            }
+            finally
+            {
+                conn.setAutoCommit( oldAC );
+            }
+        } );
     }
 
     protected Map<String, String> convertParams(Map<?, ?> params)
