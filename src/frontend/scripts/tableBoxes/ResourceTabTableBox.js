@@ -8,6 +8,8 @@ const ResourceTabTableBox = ({ value }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  console.log("value");
+  console.log(value);
   // Безопасное извлечение данных
   const resource = value?.data?.attributes?.rows?.[0];
   

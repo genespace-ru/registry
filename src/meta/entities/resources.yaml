@@ -109,6 +109,7 @@ resources:
         SELECT
           r.ID AS "ID",
           r2v.version AS "versionID",
+          r2v.valid AS "isValid",
           CONCAT( 'Карточка ресурса: ', r.name, ':', ver.name ) AS "PageTitle"
         FROM resources r
         JOIN resource2versions r2v ON r2v.resource = r.ID
@@ -127,7 +128,19 @@ resources:
       layout: '{"tableBox":"resourceTab", "mode":"named", "hideTitle":"true"}'
       code: |-
         SELECT r.ID AS "ID",
-            'Workflow: ' || r.name AS "PageTitle"
+            'Workflow: ' || r.name AS "PageTitle",
+            CONCAT(r.name, ':', ver.name) AS "Name",
+            r.type AS "Type",
+            r.language AS "Descriptor type",
+            r2v.primaryDescriptorPath AS "filepath___",
+            r.topic AS "topic___",
+            rp.url AS "repository___",
+            r2v.readMePath AS "readme___",
+            ver.name AS "version___",
+            TO_CHAR(r.creationDate___,     'DD.MM.YYYY, HH24:MI') AS "creationdate___",
+            TO_CHAR(r.modificationDate___, 'DD.MM.YYYY, HH24:MI') AS "modificationdate___",
+            r.whoInserted___,
+            r.whoModified___
         FROM resources r
         JOIN repositories rp ON rp.ID = r.repository
         JOIN resource2versions r2v ON r2v.resource = r.ID

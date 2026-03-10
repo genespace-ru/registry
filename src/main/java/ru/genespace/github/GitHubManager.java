@@ -270,4 +270,10 @@ public class GitHubManager
         GHRepository repository = repo.getRepository( repositoryId );
         return repository.getHtmlUrl();
     }
+
+    public String getWorkflowContent(String repositoryId, String repositoryRef, String primaryDescriptorPath, String workflowType)
+    {
+        String mainDescriptoContent = getFileContent( repositoryId, repositoryRef, primaryDescriptorPath );
+        return repo.getWorkflowContent( repositoryId, repositoryRef, mainDescriptoContent, workflowType );
+    }
 }

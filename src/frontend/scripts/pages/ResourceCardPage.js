@@ -3,7 +3,7 @@ import { be5, changeDocument, fetchTableByUrl, Navs, registerPage} from 'be5-rea
 import {createPageValueLocal} from "../utils";
 
 const ResourceCardPage = (props) => {
-  const {id, title, version} = props.value.data;
+  const {id, title, version, isValid} = props.value.data;
   
   console.log("props:")
   console.log(props);
@@ -13,12 +13,11 @@ const ResourceCardPage = (props) => {
   
   const steps = [
     { title: "Версии", url: "#!table/versions/ForResourceCard/___resID=" + id +"/___verID=" + version},
-    { title: "Версии_old", url: "#!table/versions/ForResourceCard/___resID=" + id  +"/___verID=" + version},
     { title: "Сценарий",   url: "#!table/resources/ResourceTab/___resID=" + id },
     { title: "Запуск", url: "#!table/resources/ToDo/___resID=" + id },
     { title: "Файлы", url: "#!table/resources/ToDo/___resID=" + id },
     { title: "Инструменты", url: "#!table/docker/ForResourceCard/___resID=" + id + "/___verID=" + version },
-    { title: "DAG", url: "#!table/resources/ToDo/___resID=" + id },
+    { title: "DAG", url: "#!resourceDAGPage/ID=" + id + "/versionID=" + version + "/isValid=" + isValid},
     { title: "Метрики", url: "#!table/resources/ToDo/___resID=" + id },
   ];
 
@@ -34,8 +33,14 @@ const ResourceCardPage = (props) => {
 registerPage('resourceCardPage', ResourceCardPage, (frontendParams, params) => {
   fetchTableByUrl("table/resources/ResourceCardInfo/ID=" + params.ID + "/versionID=" + params.versionID, json => {
     const cells = json.data.attributes.rows[0];
+    const data = {
+        id: cells.ID.value,
+        title: cells.PageTitle.value,
+        version: cells.versionID.value,
+        isValid: cells.isValid.value
+      };
     changeDocument(frontendParams.documentName,
-      createPageValueLocal('resourceCardPage', cells.PageTitle.value, cells.ID.value, cells.versionID.value, )
+      createPageValueLocal('resourceCardPage', data )
     );
   });
 });

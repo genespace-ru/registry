@@ -13,12 +13,7 @@ export const getBackOrOpenDefaultRouteActionButton = (props) => {
   )
 };
 
-export const createPageValueLocal = (actionName, title, id, version) => {
-  const data = {
-    id: id,
-    title: title,
-    version: version
-  };
+export const createPageValueLocal = (actionName, data) => {
   return {
     value: {data: data},
     frontendParams: {type: actionName}

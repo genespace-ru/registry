@@ -1,5 +1,6 @@
 package ru.genespace.webserver;
 
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Array;
@@ -14,12 +15,21 @@ import javax.inject.Inject;
 import javax.servlet.http.HttpServletResponse;
 
 import com.developmentontheedge.be5.database.DbService;
+import com.developmentontheedge.be5.database.QRec;
 import com.developmentontheedge.be5.server.servlet.support.BaseControllerSupport;
 import com.developmentontheedge.be5.web.Request;
 import com.developmentontheedge.be5.web.Response;
 
+import biouml.model.Diagram;
+import biouml.model.util.DiagramImageGenerator;
+import biouml.plugins.wdl.diagram.WDLImporter;
+import biouml.plugins.wdl.nextflow.NextFlowImporter;
+import ru.biosoft.graphics.ImageGenerator;
 import ru.biosoft.server.servlets.webservices.BiosoftWebResponse;
 import ru.biosoft.server.servlets.webservices.JSONResponse;
+import ru.biosoft.util.ApplicationUtils;
+import ru.biosoft.util.TempFile;
+import ru.biosoft.util.TempFiles;
 import ru.biosoft.util.TextUtil2;
 import ru.genespace.dockstore.languages.MarkdownHelper;
 import ru.genespace.github.GitHubManager;
@@ -69,6 +79,10 @@ public class WebserverController extends BaseControllerSupport
                 {
                     processContent( convertParams( arguments ), resp );
                 }
+                else if( subServlet.equals( "image" ) )
+                {
+                    processImage( convertParams( arguments ), resp );
+                }
 
             }
             catch (Throwable t)
@@ -100,9 +114,7 @@ public class WebserverController extends BaseControllerSupport
                 log.log( Level.WARNING, "Can not load file content. Github repository name and reference (branch or tag) should be specified." );
                 return;
             }
-            String githubUser = db.getString( "SELECT setting_value FROM systemsettings WHERE section_name='registry' AND setting_name='github_user'" );
-            String githubToken = db.getString( "SELECT setting_value FROM systemsettings WHERE section_name='registry' AND setting_name='github_token'" );
-            GitHubManager gitHubManager = new GitHubManager( githubUser, githubToken );
+            GitHubManager gitHubManager = getGithubManager();
             content = gitHubManager.getFileContent( repositoryId, version, filepath );
             if( filepath.endsWith( "md" ) || "markdown".equals( contentType ) )
             {
@@ -117,6 +129,76 @@ public class WebserverController extends BaseControllerSupport
             {
                 resp.setContentType( "text/html" );
                 out.write( content.getBytes( "utf-8" ) );
+            }
+
+        }
+        catch (Exception e)
+        {
+            log.log( Level.SEVERE, "Can not load file content. " + e.getMessage() );
+        }
+        finally
+        {
+            out.close();
+        }
+    }
+
+    private GitHubManager getGithubManager()
+    {
+        String githubUser = db.getString( "SELECT setting_value FROM systemsettings WHERE section_name='registry' AND setting_name='github_user'" );
+        String githubToken = db.getString( "SELECT setting_value FROM systemsettings WHERE section_name='registry' AND setting_name='github_token'" );
+        GitHubManager gitHubManager = new GitHubManager( githubUser, githubToken );
+        return gitHubManager;
+    }
+
+    private void processImage(Map<String, String> arguments, BiosoftWebResponse resp) throws Exception
+    {
+        OutputStream out = resp.getOutputStream();
+        try
+        {
+
+
+            String version = arguments.get( "version" ).toString();
+            String resourceId = arguments.get( "resource" ).toString();
+            QRec info = db.recordWithParams(
+                    "SELECT r2v.primaryDescriptorPath AS primaryDescriptorPath, res.language AS language, repo.url AS repository, ver.name as reference FROM resource2versions r2v "
+                            + "JOIN resources res ON res.ID=r2v.resource JOIN repositories repo ON repo.ID=res.repository JOIN versions ver ON ver.ID=r2v.version"
+                            + " WHERE r2v.resource=? AND r2v.version=? ",
+                    Long.parseLong( resourceId ), Long.parseLong( version ) );
+            String primaryDescriptorPath = info.getString( "primaryDescriptorPath" );
+            String shortType = info.getString( "language" );
+            String repositoryId = info.getString( "repository" );
+            String reference = info.getString( "reference" );
+            if( reference == null )
+                reference = "main";
+
+            GitHubManager gitHubManager = getGithubManager();
+            String workflowContent = gitHubManager.getWorkflowContent( repositoryId, reference, primaryDescriptorPath, shortType );
+            if( workflowContent == null || workflowContent.isEmpty() )
+            {
+                return;
+            }
+            TempFile file = TempFiles.file( reference );
+            ApplicationUtils.writeString( file, workflowContent );
+            Diagram diagram = null;
+
+            switch (shortType)
+            {
+            case "WDL":
+                WDLImporter importerWDL = new WDLImporter();
+                diagram = importerWDL.generateDiagram( file, reference, null );
+                break;
+            case "CWL":
+
+            case "NFL":
+                NextFlowImporter importerNFL = new NextFlowImporter();
+                diagram = importerNFL.importNextflow( workflowContent );
+                break;
+            }
+            if( diagram != null )
+            {
+                resp.setContentType( "image/png" );
+                BufferedImage image = DiagramImageGenerator.generateDiagramImage( diagram );
+                ImageGenerator.encodeImage( image, "PNG", out );
             }
 
         }

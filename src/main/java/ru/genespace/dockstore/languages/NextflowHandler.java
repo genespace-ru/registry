@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Random;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -126,6 +127,22 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
         return version;
     }
 
+    public String getMainWorkflowScript(String mainDescriptorContent, String repositoryId, String repositoryRef, GitHubRepository sourceCodeRepoInterface)
+    {
+        Random random = new Random();
+        
+        // Случайный long
+        long randomLong = random.nextLong();
+        final Configuration configuration = grabConfig( mainDescriptorContent, String.valueOf( randomLong ) );
+        String mainScriptPath = getMainScriptPath( configuration );
+        return sourceCodeRepoInterface.readFile( repositoryId, addLeadingSlash( mainScriptPath ), repositoryRef );
+    }
+
+    private static String addLeadingSlash(String path)
+    {
+        return path.startsWith( "/" ) ? path : "/" + path;
+    }
+
     /**
      *  Sets source files' type version, and updates the workflow version descriptor type version
      *  based on the source files's descriptor type version.
@@ -161,6 +178,7 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
         try
         {
             configuration = grabConfig( content, repositoryId );
+
         }
         catch (Exception e)
         {

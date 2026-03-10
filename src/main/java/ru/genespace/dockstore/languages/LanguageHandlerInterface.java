@@ -91,6 +91,11 @@ public interface LanguageHandlerInterface {
         return version;
     }
 
+    default String getMainWorkflowScript(String mainDescriptorContent, String repositoryId, String repositoryRef, GitHubRepository sourceCodeRepoInterface)
+    {
+        return mainDescriptorContent;
+    }
+
     /**
      * Validates a workflow set for the workflow described by with primaryDescriptorFilePath
      * 
