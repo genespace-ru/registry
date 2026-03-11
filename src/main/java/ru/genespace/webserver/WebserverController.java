@@ -29,6 +29,7 @@ import com.developmentontheedge.be5.web.Response;
 import biouml.model.Diagram;
 import biouml.model.util.DiagramImageGenerator;
 import biouml.plugins.wdl.diagram.WDLImporter;
+import biouml.plugins.wdl.diagram.WDLLayouter;
 import biouml.plugins.wdl.nextflow.NextFlowImporter;
 import ru.biosoft.graphics.ImageGenerator;
 import ru.biosoft.server.servlets.webservices.BiosoftWebResponse;
@@ -214,6 +215,7 @@ public class WebserverController extends BaseControllerSupport
             }
             if( diagram != null )
             {
+                new WDLLayouter().layout( diagram );
                 resp.setContentType( "image/png" );
                 BufferedImage image = DiagramImageGenerator.generateDiagramImage( diagram );
                 ImageGenerator.encodeImage( image, "PNG", out );
@@ -222,15 +224,6 @@ public class WebserverController extends BaseControllerSupport
                 ImageGenerator.encodeImage( image, "PNG", new FileOutputStream( diagramImageFile ) );
                 FileInputStream inputStream = new FileInputStream( diagramImageFile );
                 addImageToDB( resourceId, version, primaryDescriptorPath, inputStream );
-
-                //                db.insertRaw( "INSERT INTO attachments (resource, version, fileName, data) VALUES (?,?,?, ?)", resourceId, version,
-                //                        primaryDescriptorPath, inputStream );
-
-
-
-                //                statement.setBlob(1, inputStream);
-                //                
-                //                db.insertRaw( "INSERT INTO attachments (resource, version, fileName, data) VALUES (?,?,?, ?)", resourceId, version, primaryDescriptorPath, image );
             }
 
         }

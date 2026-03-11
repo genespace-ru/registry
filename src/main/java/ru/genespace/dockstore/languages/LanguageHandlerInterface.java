@@ -91,7 +91,7 @@ public interface LanguageHandlerInterface {
         return version;
     }
 
-    default String getMainWorkflowScript(String mainDescriptorContent, String repositoryId, String repositoryRef, GitHubRepository sourceCodeRepoInterface)
+    default String getMainWorkflowScript(String mainDescriptorContent, String repositoryId, String repositoryRef, GitHubRepository sourceCodeRepoInterface, String filepath)
     {
         return mainDescriptorContent;
     }

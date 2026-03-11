@@ -127,7 +127,7 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
         return version;
     }
 
-    public String getMainWorkflowScript(String mainDescriptorContent, String repositoryId, String repositoryRef, GitHubRepository sourceCodeRepoInterface)
+    public String getMainWorkflowScript(String mainDescriptorContent, String repositoryId, String repositoryRef, GitHubRepository sourceCodeRepoInterface, String filepath)
     {
         Random random = new Random();
         
@@ -135,7 +135,8 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
         long randomLong = random.nextLong();
         final Configuration configuration = grabConfig( mainDescriptorContent, String.valueOf( randomLong ) );
         String mainScriptPath = getMainScriptPath( configuration );
-        return sourceCodeRepoInterface.readFile( repositoryId, addLeadingSlash( mainScriptPath ), repositoryRef );
+        String correctedPath = unsafeConvertRelativePathToAbsolutePath( filepath, mainScriptPath );
+        return sourceCodeRepoInterface.readFile( repositoryId, correctedPath, repositoryRef );
     }
 
     private static String addLeadingSlash(String path)

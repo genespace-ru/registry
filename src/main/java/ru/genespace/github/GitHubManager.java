@@ -274,6 +274,6 @@ public class GitHubManager
     public String getWorkflowContent(String repositoryId, String repositoryRef, String primaryDescriptorPath, String workflowType)
     {
         String mainDescriptoContent = getFileContent( repositoryId, repositoryRef, primaryDescriptorPath );
-        return repo.getWorkflowContent( repositoryId, repositoryRef, mainDescriptoContent, workflowType );
+        return repo.getWorkflowContent( repositoryId, repositoryRef, mainDescriptoContent, workflowType, primaryDescriptorPath );
     }
 }
