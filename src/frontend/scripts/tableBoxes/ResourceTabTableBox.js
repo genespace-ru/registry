@@ -20,7 +20,7 @@ const ResourceTabTableBox = ({ value }) => {
   const title = resource.PageTitle?.value || "Title not set";
   be5.ui.setTitle(title);
 
-  const urlParams = `webserver/web/content?repository=${resource.repository___.value}&version=${resource.version___.value}&filepath=${resource.readme___.value}&content=markdown`;
+  const urlParams = `webserver/web/content?repository=${resource.repositoryID___.value}&resource=${resource.ID.value}&version=${resource.versionID___.value}&filepath=${resource.readme___.value}&content=markdown`;
 
   useEffect(() => {
     let isMounted = true; // защита от обновления состояния после размонтирования

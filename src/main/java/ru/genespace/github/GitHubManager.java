@@ -18,6 +18,8 @@ import org.kohsuke.github.GHRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.genespace.content.CachedContentManager;
+import ru.genespace.content.ContentManager;
 import ru.genespace.dockstore.AppTool;
 import ru.genespace.dockstore.DescriptorLanguage;
 import ru.genespace.dockstore.Notebook;
@@ -256,11 +258,20 @@ public class GitHubManager
      * @return file content as string
      */
 
-    public String getFileContent(String repositoryId, String reference, String fileName)
+    public String getFileContent(String repositoryId, String reference, String fileName, ContentManager cache)
     {
+        if( cache != null )
+        {
+            String content = cache.getFileContentText( fileName );
+            if( content != null )
+                return content;
+        }
         GHRepository repository = repo.getRepository( repositoryId );
-
         String result = repo.readFileFromRepo( fileName, reference, repository );
+        if( cache != null )
+        {
+            cache.setFileContentText( fileName, result );
+        }
         return result;
 
     }
@@ -271,9 +282,10 @@ public class GitHubManager
         return repository.getHtmlUrl();
     }
 
-    public String getWorkflowContent(String repositoryId, String repositoryRef, String primaryDescriptorPath, String workflowType)
+    public String getWorkflowContent(String repositoryId, String repositoryRef, String primaryDescriptorPath, String workflowType, ContentManager cache)
     {
-        String mainDescriptoContent = getFileContent( repositoryId, repositoryRef, primaryDescriptorPath );
-        return repo.getWorkflowContent( repositoryId, repositoryRef, mainDescriptoContent, workflowType, primaryDescriptorPath );
+        String mainDescriptorContent = getFileContent( repositoryId, repositoryRef, primaryDescriptorPath, cache );
+        //TODO: cache workflow content
+        return repo.getWorkflowContent( repositoryId, repositoryRef, mainDescriptorContent, workflowType, primaryDescriptorPath );
     }
 }

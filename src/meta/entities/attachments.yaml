@@ -8,10 +8,14 @@ attachments:
         type: KEYTYPE
         autoIncrement: true
         primaryKey: true
+    - repository:
+        type: KEYTYPE
+        reference: repositories.ID
+        doc: resource
     - resource:
-            type: KEYTYPE
-            reference: resources.ID
-            doc: resource
+        type: KEYTYPE
+        reference: resources.ID
+        doc: resource
     - version:
         type: KEYTYPE
         reference: versions.ID
@@ -48,18 +52,7 @@ attachments:
       code: |-
         SELECT 
              a.ID AS "ID", 
-             CASE 
-                WHEN COALESCE( LENGTH(a.data),0       ) = 0 THEN a.fileName
-        <if columnExists="attachments.thumbnail"> 
-                WHEN LENGTH(a.thumbnail) > 0 THEN 
-                       CONCAT( '<b>',a.fileName ,'</b><br /><a hre' ,'f="' ,'/api/download?_t_=attachments&_typeColumn_=mimeType&_filenameColumn_=fileName&_dataColumn_=data&ID=', CAST( a.ID AS CHAR ),
-                           '"><img border="0" src="' ,'/api/download?_t_=attachments&_typeColumn_=''image/jpeg''&_filenameColumn_=fileName&_dataColumn_=thumbnail&ID=', CAST( a.ID AS CHAR ), '"></a>' ) 
-        </if> 
-                WHEN a.mimeType LIKE 'image/%' THEN 
-                       CONCAT( '<b>',a.fileName ,'</b><br /><img width="500" src="' ,'/api/download?_t_=attachments&_typeColumn_=mimeType&_filenameColumn_=fileName&_dataColumn_=data&ID=', CAST( a.ID AS CHAR ), '">' ) 
-                ELSE CONCAT( '<a hre','f="' ,'/api/download?_t_=attachments&_typeColumn_=mimeType&_filenameColumn_=fileName&_dataColumn_=data&ID=', CAST( a.ID AS CHAR ), '">', a.fileName, '</a>' ) 
-             END 
-                AS "Name",          
+             a.fileName AS "Name",
              LENGTH(a.data) 
                 AS "Size", 
              a.mimeType 
@@ -72,5 +65,5 @@ attachments:
                 AS "Created", 
              a.whoInserted___ 
                 AS "Who Created" 
-        FROM attachments<parameter:_tcloneid_ default=""/> a 
+        FROM attachments a 
         ORDER BY a.creationDate___ DESC

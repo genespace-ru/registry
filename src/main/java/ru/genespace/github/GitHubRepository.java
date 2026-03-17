@@ -56,6 +56,7 @@ import com.google.common.collect.Lists;
 
 import okhttp3.Cache;
 import okhttp3.OkHttpClient;
+import ru.genespace.content.ContentManager;
 import ru.genespace.dockstore.AppTool;
 import ru.genespace.dockstore.Author;
 import ru.genespace.dockstore.DescriptorLanguage;
@@ -1957,11 +1958,11 @@ public class GitHubRepository
         }
     }
 
-    public String getWorkflowContent(String repositoryId, String repositoryRef, String mainDescriptoContent, String shortType, String filepath)
+    public String getWorkflowContent(String repositoryId, String repositoryRef, String mainDescriptorContent, String shortType, String filepath)
     {
         DescriptorLanguage descriptorLanguage = DescriptorLanguage.convertShortStringToEnum( shortType );
         LanguageHandlerInterface lang = LanguageHandlerFactory.getInterface( descriptorLanguage );
-        return lang.getMainWorkflowScript( mainDescriptoContent, repositoryId, repositoryRef, this, filepath );
+        return lang.getMainWorkflowScript( mainDescriptorContent, repositoryId, repositoryRef, this, filepath );
     }
 
 }

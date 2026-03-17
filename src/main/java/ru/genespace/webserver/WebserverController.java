@@ -1,27 +1,21 @@
 package ru.genespace.webserver;
 
 import java.awt.image.BufferedImage;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Array;
 import java.net.URL;
-import java.sql.PreparedStatement;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.servlet.http.HttpServletResponse;
 
 import com.developmentontheedge.be5.database.DbService;
 import com.developmentontheedge.be5.database.QRec;
-import com.developmentontheedge.be5.database.Transactional;
 import com.developmentontheedge.be5.server.servlet.support.BaseControllerSupport;
 import com.developmentontheedge.be5.web.Request;
 import com.developmentontheedge.be5.web.Response;
@@ -38,6 +32,7 @@ import ru.biosoft.util.ApplicationUtils;
 import ru.biosoft.util.TempFile;
 import ru.biosoft.util.TempFiles;
 import ru.biosoft.util.TextUtil2;
+import ru.genespace.content.CachedContentManager;
 import ru.genespace.dockstore.languages.MarkdownHelper;
 import ru.genespace.github.GitHubManager;
 
@@ -110,32 +105,56 @@ public class WebserverController extends BaseControllerSupport
         resp.setContentType( "text/html" );
         try
         {
-            String contentType = arguments.get( "content" ).toString();
+            String contentType = arguments.get( "content" );
             String content = null;
             //Get file content from git
-            String filepath = arguments.get( "filepath" ).toString();
-            String repositoryId = arguments.get( "repository" ).toString();
-            String version = arguments.get( "version" ).toString();
-            if(repositoryId == null || version == null)
+            String filepath = arguments.get( "filepath" );
+
+            if( !arguments.containsKey( "repository" ) || !arguments.containsKey( "version" ) || !arguments.containsKey( "resource" ) )
             {
-                log.log( Level.WARNING, "Can not load file content. Github repository name and reference (branch or tag) should be specified." );
+                log.log( Level.WARNING, "Can not load file content. Github repository name, resource and version (branch or tag) should be specified." );
                 return;
             }
-            GitHubManager gitHubManager = getGithubManager();
-            content = gitHubManager.getFileContent( repositoryId, version, filepath );
-            if( filepath.endsWith( "md" ) || "markdown".equals( contentType ) )
+
+            Long repositoryId = Long.parseLong( arguments.get( "repository" ) );
+            Long versionId = Long.parseLong( arguments.get( "version" ) );
+            Long resourceId = Long.parseLong( arguments.get( "resource" ) );
+
+            CachedContentManager cache = new CachedContentManager( db, repositoryId, resourceId, versionId );
+            content = cache.getFileContentText( filepath );
+            if( content == null )
             {
-                URL repoURL = gitHubManager.getRepositoryURL( repositoryId );
-                //Dirty: make absolute links to files from github 
-                //variant 1: https://github.com/genespace-workflows/snv-calling/blob/main/***RELATIVE PATH TO IMAGE IN ORIGINAL MARKDOWN***?raw=true
-                //variant 2: https://raw.githubusercontent.com/genespace-workflows/snv-calling/main/***RELATIVE PATH TO IMAGE IN ORIGINAL MARKDOWN***
-                String repoUrlStr = repoURL.toString() + "/blob/" + version + "/";
-                content = MarkdownHelper.resolveRelativeImages( content, repoUrlStr, "?raw=true" );
+
+                QRec info = db.recordWithParams(
+                        "SELECT repo.url AS repository, ver.name as reference FROM versions ver JOIN repositories repo ON repo.ID=ver.repository WHERE ver.ID=? ", versionId );
+                String repositoryName = info.getString( "repository" );
+                String reference = info.getString( "reference" );
+
+                GitHubManager gitHubManager = getGithubManager();
+                content = gitHubManager.getFileContent( repositoryName, reference, filepath, null );
+                if( filepath.endsWith( "md" ) || "markdown".equals( contentType ) )
+                {
+                    URL repoURL = gitHubManager.getRepositoryURL( repositoryName );
+                    //Dirty: make absolute links to files from github 
+                    //variant 1: https://github.com/genespace-workflows/snv-calling/blob/main/***RELATIVE PATH TO IMAGE IN ORIGINAL MARKDOWN***?raw=true
+                    //variant 2: https://raw.githubusercontent.com/genespace-workflows/snv-calling/main/***RELATIVE PATH TO IMAGE IN ORIGINAL MARKDOWN***
+                    String repoUrlStr = repoURL.toString() + "/blob/" + reference + "/";
+                    content = MarkdownHelper.resolveRelativeImages( content, repoUrlStr, "?raw=true" );
+                }
+                if( content != null )
+                    cache.setFileContentText( filepath, content );
             }
             if(content != null)
             {
                 resp.setContentType( "text/html" );
                 out.write( content.getBytes( "utf-8" ) );
+            }
+            else
+            {
+                //Error with file, send empty
+                resp.setContentType( "text/html" );
+                String noFileContent = "Can not read " + filepath;
+                out.write( noFileContent.getBytes( "utf-8" ) );
             }
 
         }
@@ -162,36 +181,33 @@ public class WebserverController extends BaseControllerSupport
         OutputStream out = resp.getOutputStream();
         try
         {
-
-
-            Long version = Long.parseLong( arguments.get( "version" ).toString() );
-            Long resourceId = Long.parseLong( arguments.get( "resource" ).toString() );
+            Long versionId = Long.parseLong( arguments.get( "version" ) );
+            Long resourceId = Long.parseLong( arguments.get( "resource" ) );
             QRec info = db.recordWithParams(
-                    "SELECT r2v.primaryDescriptorPath AS primaryDescriptorPath, res.language AS language, repo.url AS repository, ver.name as reference FROM resource2versions r2v "
+                    "SELECT r2v.primaryDescriptorPath AS primaryDescriptorPath, res.language AS language, repo.url AS repository, repo.ID AS repositoryId, ver.name as reference FROM resource2versions r2v "
                             + "JOIN resources res ON res.ID=r2v.resource JOIN repositories repo ON repo.ID=res.repository JOIN versions ver ON ver.ID=r2v.version"
                             + " WHERE r2v.resource=? AND r2v.version=? ",
-                    resourceId, version );
+                    resourceId, versionId );
             String primaryDescriptorPath = info.getString( "primaryDescriptorPath" );
             String shortType = info.getString( "language" );
-            String repositoryId = info.getString( "repository" );
+            String repositoryName = info.getString( "repository" );
+            Long repositoryId = info.getLong( "repositoryId" );
             String reference = info.getString( "reference" );
             if( reference == null )
                 reference = "main";
-            QRec imageRec = db.recordWithParams( "SELECT data FROM attachments WHERE resource=? AND version=? AND fileName=?", resourceId, version, primaryDescriptorPath );
-            if( imageRec != null && !imageRec.isEmpty() )
+
+            CachedContentManager cache = new CachedContentManager( db, repositoryId, resourceId, versionId );
+            String imageFilePath = "DAG";
+            BufferedImage imageObj = cache.getFileContentImage( imageFilePath );
+            if( imageObj != null )
             {
-                InputStream imageStream = imageRec.getBinaryStream( "data" );
-                BufferedImage imageObj = ImageIO.read( imageStream );
-                if( imageObj != null )
-                {
-                    resp.setContentType( "image/png" );
-                    ImageGenerator.encodeImage( (BufferedImage) imageObj, "PNG", out );
-                    return;
-                }
+                resp.setContentType( "image/png" );
+                ImageGenerator.encodeImage( (BufferedImage) imageObj, "PNG", out );
+                return;
             }
             
             GitHubManager gitHubManager = getGithubManager();
-            String workflowContent = gitHubManager.getWorkflowContent( repositoryId, reference, primaryDescriptorPath, shortType );
+            String workflowContent = gitHubManager.getWorkflowContent( repositoryName, reference, primaryDescriptorPath, shortType, cache );
             if( workflowContent == null || workflowContent.isEmpty() )
             {
                 return;
@@ -220,10 +236,7 @@ public class WebserverController extends BaseControllerSupport
                 BufferedImage image = DiagramImageGenerator.generateDiagramImage( diagram );
                 ImageGenerator.encodeImage( image, "PNG", out );
                 
-                TempFile diagramImageFile = TempFiles.file( "diagramImage" + reference );
-                ImageGenerator.encodeImage( image, "PNG", new FileOutputStream( diagramImageFile ) );
-                FileInputStream inputStream = new FileInputStream( diagramImageFile );
-                addImageToDB( resourceId, version, primaryDescriptorPath, inputStream );
+                cache.setFileContentImage( imageFilePath, image );
             }
 
         }
@@ -235,28 +248,6 @@ public class WebserverController extends BaseControllerSupport
         {
             out.close();
         }
-    }
-
-    @Transactional
-    private void addImageToDB(Long resourceId, Long version, String primaryDescriptorPath, FileInputStream inputStream)
-    {
-        db.execute( conn -> {
-            boolean oldAC = conn.getAutoCommit();
-            conn.setAutoCommit( false );
-            try (PreparedStatement ps = conn.prepareStatement( "INSERT INTO attachments (resource, version, fileName, data) VALUES (?,?,?, ?)" ))
-            {
-                ps.setLong( 1, resourceId );
-                ps.setLong( 2, version );
-                ps.setString( 3, primaryDescriptorPath );
-                ps.setBinaryStream( 4, inputStream );
-
-                return ps.execute();
-            }
-            finally
-            {
-                conn.setAutoCommit( oldAC );
-            }
-        } );
     }
 
     protected Map<String, String> convertParams(Map<?, ?> params)
