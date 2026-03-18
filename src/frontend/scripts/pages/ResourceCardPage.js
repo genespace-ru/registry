@@ -14,7 +14,7 @@ const ResourceCardPage = (props) => {
   
   const steps = [
     { title: "Версии", url: "#!table/versions/ForResourceCard/___resID=" + id +"/___verID=" + version},
-    { title: "Сценарий",   url: "#!table/resources/ResourceTab/___resID=" + id +"/___verID=" + version},
+    { title: "Сценарий",   url: "#!resourceTabPage/resourceID=" + id +"/versionID=" + version},
     //{ title: "Запуск", url: "#!table/resources/ToDo/___resID=" + id },
     { title: "Файлы", url: "#!resourceFilePage/ID=" + id + "/resource2versions=" + resource2versions + "/filepath=" + filepath },
     { title: "Инструменты", url: "#!table/docker/ForResourceCard/___resID=" + id + "/___verID=" + version },

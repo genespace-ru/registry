@@ -19,10 +19,9 @@ import 'be5-react/src/css/splitPane.css';
 import 'be5-react/src/css/languageSelector.css';
 import 'be5-react/src/css/main.css';
 
-import './tableBoxes/ResourceTabTableBox';
-
 import '../images/favicon.ico';
 
 import './pages/ResourceCardPage';
+import './pages/ResourceTabPage';
 import './pages/ResourceDAGPage';
 import './pages/ResourceFilePage';
