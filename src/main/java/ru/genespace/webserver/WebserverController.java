@@ -81,9 +81,9 @@ public class WebserverController extends BaseControllerSupport
                 {
                     processContent( convertParams( arguments ), resp );
                 }
-                else if( subServlet.equals( "image" ) )
+                else if( subServlet.equals( "dag" ) )
                 {
-                    processImage( convertParams( arguments ), resp );
+                    processDiagramImage( convertParams( arguments ), resp );
                 }
 
             }
@@ -99,6 +99,7 @@ public class WebserverController extends BaseControllerSupport
         }
     }
 
+
     private void processContent(Map<String, String> arguments, BiosoftWebResponse resp) throws Exception
     {
         OutputStream out = resp.getOutputStream();
@@ -107,26 +108,40 @@ public class WebserverController extends BaseControllerSupport
         {
             String contentType = arguments.get( "content" );
             String content = null;
-            //Get file content from git
-            String filepath = arguments.get( "filepath" );
+            //Get file content from git or from cache
 
-            if( !arguments.containsKey( "repository" ) || !arguments.containsKey( "version" ) || !arguments.containsKey( "resource" ) )
+            String filepath = arguments.get( "filepath" );
+            String owner = arguments.get("ownerId");
+            String ownertype = arguments.get("ownerType");
+
+            if( owner == null )
             {
-                log.log( Level.WARNING, "Can not load file content. Github repository name, resource and version (branch or tag) should be specified." );
-                return;
+                String[] possibleOwners = new String[] { "resource2versions", "resources", "versions", "repositories" };
+                for ( String po : possibleOwners )
+                {
+                    if( arguments.containsKey( po ) )
+                    {
+                        owner = arguments.get( po );
+                        ownertype = po;
+                        break;
+                    }
+                }
             }
 
-            Long repositoryId = Long.parseLong( arguments.get( "repository" ) );
-            Long versionId = Long.parseLong( arguments.get( "version" ) );
-            Long resourceId = Long.parseLong( arguments.get( "resource" ) );
-
-            CachedContentManager cache = new CachedContentManager( db, repositoryId, resourceId, versionId );
+            if( owner == null || ownertype == null || filepath == null )
+            {
+                log.log( Level.WARNING,
+                        "Can not load file content. File name, owner type and id of either repository, resource, version or resource2version should be specified." );
+                return;
+            }
+            
+            Long ownerId = Long.parseLong( owner );
+            
+            CachedContentManager cache = new CachedContentManager( db,ownerId , ownertype );
             content = cache.getFileContentText( filepath );
             if( content == null )
             {
-
-                QRec info = db.recordWithParams(
-                        "SELECT repo.url AS repository, ver.name as reference FROM versions ver JOIN repositories repo ON repo.ID=ver.repository WHERE ver.ID=? ", versionId );
+                QRec info = getGithubParams( ownerId, ownertype );
                 String repositoryName = info.getString( "repository" );
                 String reference = info.getString( "reference" );
 
@@ -168,6 +183,29 @@ public class WebserverController extends BaseControllerSupport
         }
     }
 
+    private QRec getGithubParams(Long ownerId, String ownerType)
+    {
+        switch (ownerType)
+        {
+        case "repositories":
+            return db.recordWithParams( "SELECT repo.url AS repository, ver.name as reference FROM versions ver JOIN repositories repo ON repo.ID=ver.repository WHERE repo.ID=? ",
+                    ownerId );
+        case "versions":
+            return db.recordWithParams( "SELECT repo.url AS repository, ver.name as reference FROM versions ver JOIN repositories repo ON repo.ID=ver.repository WHERE ver.ID=? ",
+                    ownerId );
+        case "resources":
+            return db.recordWithParams(
+                    "SELECT repo.url AS repository, ver.name as reference FROM resources res JOIN repositories repo ON repo.ID=res.repository JOIN resource2versions ON res.ID=r2v.resource JOIN versions ver ON r2v.version=ver.ID WHERE res.ID=? ",
+                    ownerId );
+        case "resource2versions":
+            return db.recordWithParams(
+                    "SELECT repo.url AS repository, ver.name as reference FROM resource2versions r2v JOIN versions ver ON r2v.version=ver.ID JOIN repositories repo ON ver.repository=repo.ID WHERE r2v.ID=? ",
+                    ownerId );
+        default:
+            return null;
+        }
+    }
+
     private GitHubManager getGithubManager()
     {
         String githubUser = db.getString( "SELECT setting_value FROM systemsettings WHERE section_name='registry' AND setting_name='github_user'" );
@@ -176,7 +214,7 @@ public class WebserverController extends BaseControllerSupport
         return gitHubManager;
     }
 
-    private void processImage(Map<String, String> arguments, BiosoftWebResponse resp) throws Exception
+    private void processDiagramImage(Map<String, String> arguments, BiosoftWebResponse resp) throws Exception
     {
         OutputStream out = resp.getOutputStream();
         try
@@ -184,19 +222,15 @@ public class WebserverController extends BaseControllerSupport
             Long versionId = Long.parseLong( arguments.get( "version" ) );
             Long resourceId = Long.parseLong( arguments.get( "resource" ) );
             QRec info = db.recordWithParams(
-                    "SELECT r2v.primaryDescriptorPath AS primaryDescriptorPath, res.language AS language, repo.url AS repository, repo.ID AS repositoryId, ver.name as reference FROM resource2versions r2v "
+                    "SELECT r2v.primaryDescriptorPath AS primaryDescriptorPath, res.language AS language, r2v.ID as ownerId FROM resource2versions r2v "
                             + "JOIN resources res ON res.ID=r2v.resource JOIN repositories repo ON repo.ID=res.repository JOIN versions ver ON ver.ID=r2v.version"
                             + " WHERE r2v.resource=? AND r2v.version=? ",
                     resourceId, versionId );
             String primaryDescriptorPath = info.getString( "primaryDescriptorPath" );
             String shortType = info.getString( "language" );
-            String repositoryName = info.getString( "repository" );
-            Long repositoryId = info.getLong( "repositoryId" );
-            String reference = info.getString( "reference" );
-            if( reference == null )
-                reference = "main";
+            Long ownerId = info.getLong( "ownerId" );
 
-            CachedContentManager cache = new CachedContentManager( db, repositoryId, resourceId, versionId );
+            CachedContentManager cache = new CachedContentManager( db, ownerId, "resource2versions" );
             String imageFilePath = "DAG";
             BufferedImage imageObj = cache.getFileContentImage( imageFilePath );
             if( imageObj != null )
@@ -206,7 +240,13 @@ public class WebserverController extends BaseControllerSupport
                 return;
             }
             
+            QRec info2 = getGithubParams( ownerId, "resource2versions" );
+            String repositoryName = info2.getString( "repository" );
+            String reference = info2.getString( "reference" );
+            if( reference == null )
+                reference = "main";
             GitHubManager gitHubManager = getGithubManager();
+
             String workflowContent = gitHubManager.getWorkflowContent( repositoryName, reference, primaryDescriptorPath, shortType, cache );
             if( workflowContent == null || workflowContent.isEmpty() )
             {

@@ -25,3 +25,4 @@ import '../images/favicon.ico';
 
 import './pages/ResourceCardPage';
 import './pages/ResourceDAGPage';
+import './pages/ResourceFilePage';

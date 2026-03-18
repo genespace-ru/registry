@@ -110,6 +110,8 @@ resources:
           r.ID AS "ID",
           r2v.version AS "versionID",
           r2v.valid AS "isValid",
+          r2v.ID AS "resource2versions",
+          r2v.primaryDescriptorPath AS "fileName",
           CONCAT( 'Карточка ресурса: ', r.name, ':', ver.name ) AS "PageTitle"
         FROM resources r
         JOIN resource2versions r2v ON r2v.resource = r.ID
@@ -136,6 +138,7 @@ resources:
             r.topic AS "topic___",
             rp.ID AS "repositoryID___",
             r2v.readMePath AS "readme___",
+            r2v.ID AS "resource2versions___",
             ver.ID AS "versionID___",
             TO_CHAR(r.creationDate___,     'DD.MM.YYYY, HH24:MI') AS "creationdate___",
             TO_CHAR(r.modificationDate___, 'DD.MM.YYYY, HH24:MI') AS "modificationdate___",

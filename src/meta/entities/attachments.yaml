@@ -8,18 +8,17 @@ attachments:
         type: KEYTYPE
         autoIncrement: true
         primaryKey: true
-    - repository:
+    - ownerID:
         type: KEYTYPE
-        reference: repositories.ID
-        doc: resource
-    - resource:
-        type: KEYTYPE
-        reference: resources.ID
-        doc: resource
-    - version:
-        type: KEYTYPE
-        reference: versions.ID
-        doc: version (branch or tag in Git repository)
+        reference:
+          to:
+          - repositories
+          - resources
+          - versions
+          - resource2versions
+    - ownerType:
+        type: ENUM(repositories, resources, versions, resource2versions, other)
+        defaultValue: '''other'''
     - fileName:
         type: VARCHAR(255)
     - mimeType:

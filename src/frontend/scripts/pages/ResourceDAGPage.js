@@ -7,7 +7,7 @@ const ResourceDAGPage = (props) => {
   const id = data.id;
   const version = data.version;
   const isValid = data.valid;
-  const imageUrl = `webserver/web/image?resource=${id}&version=${version}`;
+  const imageUrl = `webserver/web/dag?resource=${id}&version=${version}`;
     if(isValid == 'yes')
         return (
           <div className="container">

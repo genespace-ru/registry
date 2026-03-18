@@ -16,23 +16,21 @@ import com.developmentontheedge.be5.database.QRec;
 
 public class CachedContentManager implements ContentManager
 {
-    private Long repositoryId;
-    private Long resourceId;
-    private Long versionId;
+    private Long ownerId;
+    private String ownerType;
     private DbService db;
 
-    public CachedContentManager(DbService db, Long repositoryId, Long resourceId, Long versionId)
+    public CachedContentManager(DbService db, Long ownerId, String ownerType)
     {
-        this.repositoryId = repositoryId;
-        this.resourceId = resourceId;
-        this.versionId = versionId;
+        this.ownerId = ownerId;
+        this.ownerType = ownerType;
         this.db = db;
     }
 
 
     public String getFileContentText(String fileName)
     {
-        QRec dbRec = db.recordWithParams( "SELECT data, mimeType FROM attachments WHERE resource=? AND version=? AND fileName=?", resourceId, versionId, fileName );
+        QRec dbRec = db.recordWithParams( "SELECT data, mimeType FROM attachments WHERE ownerId=? AND ownerType=? AND fileName=?", ownerId, ownerType, fileName );
         if( dbRec != null && !dbRec.isEmpty() )
         {
             if( dbRec.getString( "mimeType" ).equals( "text/plain" ) )
@@ -55,7 +53,7 @@ public class CachedContentManager implements ContentManager
 
     public BufferedImage getFileContentImage(String fileName)
     {
-        QRec dbRec = db.recordWithParams( "SELECT data, mimeType FROM attachments WHERE resource=? AND version=? AND fileName=?", resourceId, versionId, fileName );
+        QRec dbRec = db.recordWithParams( "SELECT data, mimeType FROM attachments WHERE ownerId=? AND ownerType=? AND fileName=?", ownerId, ownerType, fileName );
         if( dbRec != null && !dbRec.isEmpty() )
         {
             if( dbRec.getString( "mimeType" ).equals( "image/png" ) )
@@ -83,14 +81,13 @@ public class CachedContentManager implements ContentManager
             boolean oldAC = conn.getAutoCommit();
             conn.setAutoCommit( false );
 
-            try (PreparedStatement ps = conn.prepareStatement( "INSERT INTO attachments (repository, resource, version, fileName, mimeType, data) VALUES (?,?,?,?,?,?)" ))
+            try (PreparedStatement ps = conn.prepareStatement( "INSERT INTO attachments (ownerId, ownerType, fileName, mimeType, data) VALUES (?,?,?,?,?)" ))
             {
-                ps.setLong( 1, repositoryId );
-                ps.setLong( 2, resourceId );
-                ps.setLong( 3, versionId );
-                ps.setString( 4, fileName );
-                ps.setString( 5, "text/plain" );
-                ps.setBinaryStream( 6, is );
+                ps.setLong( 1, ownerId );
+                ps.setString( 2, ownerType );
+                ps.setString( 3, fileName );
+                ps.setString( 4, "text/plain" );
+                ps.setBinaryStream( 5, is );
 
                 return ps.execute();
             }
@@ -115,14 +112,13 @@ public class CachedContentManager implements ContentManager
         db.execute( conn -> {
             boolean oldAC = conn.getAutoCommit();
             conn.setAutoCommit( false );
-            try (PreparedStatement ps = conn.prepareStatement( "INSERT INTO attachments (repository, resource, version, fileName, mimeType, data) VALUES (?,?,?,?,?,?)" ))
+            try (PreparedStatement ps = conn.prepareStatement( "INSERT INTO attachments (ownerId, ownerType, fileName, mimeType, data) VALUES (?,?,?,?,?)" ))
             {
-                ps.setLong( 1, repositoryId );
-                ps.setLong( 2, resourceId );
-                ps.setLong( 3, versionId );
-                ps.setString( 4, fileName );
-                ps.setString( 5, "image/png" );
-                ps.setBinaryStream( 6, is );
+                ps.setLong( 1, ownerId );
+                ps.setString( 2, ownerType );
+                ps.setString( 3, fileName );
+                ps.setString( 4, "image/png" );
+                ps.setBinaryStream( 5, is );
 
                 return ps.execute();
             }
