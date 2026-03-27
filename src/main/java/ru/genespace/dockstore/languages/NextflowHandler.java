@@ -68,6 +68,7 @@ import ru.genespace.dockstore.VersionTypeValidation;
 import ru.genespace.dockstore.Workflow;
 import ru.genespace.dockstore.WorkflowVersion;
 import ru.genespace.github.GitHubRepository;
+import ru.genespace.github.StringContentProvider;
 import ru.genespace.misc.CustomLoggedException;
 
 /**
@@ -127,16 +128,14 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
         return version;
     }
 
-    public String getMainWorkflowScript(String mainDescriptorContent, String repositoryId, String repositoryRef, GitHubRepository sourceCodeRepoInterface, String filepath)
+    public String getMainWorkflowScript(String mainDescriptorContent, String repositoryId, String repositoryRef, StringContentProvider scp, String filepath)
     {
         Random random = new Random();
-        
-        // Случайный long
         long randomLong = random.nextLong();
         final Configuration configuration = grabConfig( mainDescriptorContent, String.valueOf( randomLong ) );
         String mainScriptPath = getMainScriptPath( configuration );
         String correctedPath = unsafeConvertRelativePathToAbsolutePath( filepath, mainScriptPath );
-        return sourceCodeRepoInterface.readFile( repositoryId, correctedPath, repositoryRef );
+        return scp.getFileContent( repositoryId, repositoryRef, correctedPath );
     }
 
     private static String addLeadingSlash(String path)

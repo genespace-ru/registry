@@ -250,7 +250,7 @@ public class WebserverController extends BaseControllerSupport
             if( reference == null )
                 reference = "main";
             GitHubManager gitHubManager = getGithubManager();
-
+            gitHubManager.setCache( cache );
             String workflowContent = gitHubManager.getWorkflowContent( repositoryName, reference, primaryDescriptorPath, shortType, cache );
             if( workflowContent == null || workflowContent.isEmpty() )
             {

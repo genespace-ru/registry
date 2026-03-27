@@ -40,13 +40,14 @@ import ru.genespace.github.GitHubRepository.GitVisibility;
 import ru.genespace.github.GitHubRepository.SourceControl;
 import ru.genespace.misc.CustomLoggedException;
 
-public class GitHubManager
+public class GitHubManager implements StringContentProvider
 {
     public static final Logger LOG = LoggerFactory.getLogger( GitHubManager.class );
 
     private String gitUsername;
     private String gitToken;
     private GitHubRepository repo = null;
+    private ContentManager cache = null;
 
     public GitHubManager(String gitUsername, String gitToken)
     {
@@ -286,6 +287,22 @@ public class GitHubManager
     {
         String mainDescriptorContent = getFileContent( repositoryId, repositoryRef, primaryDescriptorPath, cache );
         //TODO: cache workflow content
-        return repo.getWorkflowContent( repositoryId, repositoryRef, mainDescriptorContent, workflowType, primaryDescriptorPath );
+        return repo.getWorkflowContent( repositoryId, repositoryRef, mainDescriptorContent, workflowType, primaryDescriptorPath, this );
+    }
+
+    @Override
+    public String getFileContent(String repositoryId, String reference, String fileName)
+    {
+        return getFileContent( repositoryId, reference, fileName, cache );
+    }
+
+    public ContentManager getCache()
+    {
+        return cache;
+    }
+
+    public void setCache(ContentManager cache)
+    {
+        this.cache = cache;
     }
 }

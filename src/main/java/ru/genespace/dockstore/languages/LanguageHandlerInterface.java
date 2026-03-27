@@ -49,6 +49,7 @@ import ru.genespace.dockstore.VersionTypeValidation;
 import ru.genespace.dockstore.Workflow;
 import ru.genespace.dockstore.WorkflowVersion;
 import ru.genespace.github.GitHubRepository;
+import ru.genespace.github.StringContentProvider;
 import ru.genespace.misc.CustomLoggedException;
 
 /**
@@ -91,7 +92,7 @@ public interface LanguageHandlerInterface {
         return version;
     }
 
-    default String getMainWorkflowScript(String mainDescriptorContent, String repositoryId, String repositoryRef, GitHubRepository sourceCodeRepoInterface, String filepath)
+    default String getMainWorkflowScript(String mainDescriptorContent, String repositoryId, String repositoryRef, StringContentProvider scp, String filepath)
     {
         return mainDescriptorContent;
     }

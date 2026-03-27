@@ -1958,11 +1958,11 @@ public class GitHubRepository
         }
     }
 
-    public String getWorkflowContent(String repositoryId, String repositoryRef, String mainDescriptorContent, String shortType, String filepath)
+    public String getWorkflowContent(String repositoryId, String repositoryRef, String mainDescriptorContent, String shortType, String filepath, StringContentProvider scp)
     {
         DescriptorLanguage descriptorLanguage = DescriptorLanguage.convertShortStringToEnum( shortType );
         LanguageHandlerInterface lang = LanguageHandlerFactory.getInterface( descriptorLanguage );
-        return lang.getMainWorkflowScript( mainDescriptorContent, repositoryId, repositoryRef, this, filepath );
+        return lang.getMainWorkflowScript( mainDescriptorContent, repositoryId, repositoryRef, scp, filepath );
     }
 
 }
