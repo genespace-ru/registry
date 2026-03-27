@@ -262,15 +262,15 @@ public class GitHubManager
     {
         if( cache != null )
         {
-            String content = cache.getFileContentText( fileName );
-            if( content != null )
-                return content;
+            Object content = cache.getFileContent( fileName );
+            if( content != null && content instanceof String )
+                return (String) content;
         }
         GHRepository repository = repo.getRepository( repositoryId );
         String result = repo.readFileFromRepo( fileName, reference, repository );
         if( cache != null )
         {
-            cache.setFileContentText( fileName, result );
+            cache.setFileContent( fileName, result );
         }
         return result;
 

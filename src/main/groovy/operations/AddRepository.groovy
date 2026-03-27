@@ -28,6 +28,7 @@ import ru.genespace.github.GitHubRepository
 import ru.genespace.webserver.WebserverController
 import ru.genespace.dockstore.DescriptorLanguage
 import ru.genespace.dockstore.Image
+import static ru.genespace.dockstore.Constants.DOCKSTORE_YML_PATHS_SET
 
 class AddRepository extends GOperationSupport {
     Map<String, Object> presets
@@ -133,7 +134,7 @@ class AddRepository extends GOperationSupport {
                 }
                 //set first version as default since it is necessary
                 def isDefaultVersion = (workflow.getActualDefaultVersion() == null || versionName.equals(workflow.getActualDefaultVersion().getName())) ? 'yes' : 'no'
-                database.resource2versions << [resource: wflID, version:versionID, valid: version.isValid() ? 'yes' : 'no', primaryDescriptorPath: primaryDescriptorPath,
+                def res2ver = database.resource2versions << [resource: wflID, version:versionID, valid: version.isValid() ? 'yes' : 'no', primaryDescriptorPath: primaryDescriptorPath,
                     readMePath: readmePath, defaultVersion: isDefaultVersion]
 
                 for(Image image: version.getImages()) {
@@ -146,6 +147,27 @@ class AddRepository extends GOperationSupport {
                     def res2docker = database.resource2docker.getBy( [docker: dockerID, resource: wflID, version: versionID])
                     if(res2docker == null)
                         database.resource2docker << [docker: dockerID, resource: wflID, version: versionID ]
+                }
+
+
+                for(SourceFile sf: version.getSourceFiles()) {
+                    if(DOCKSTORE_YML_PATHS_SET.contains(sf.getPath()))
+                        continue;
+                    else if( sf.getPath().equals(primaryDescriptorPath ) ) {
+                        def content = sf.getContent()
+                        if(content != null) {
+                            byte[] data = content.getBytes("UTF-8")
+                            //byte[] data = Base64.getDecoder().decode(content)
+                            database.attachments << [ownerID: res2ver, ownerType: "resource2versions", fileName: sf.getAbsolutePath(), mimeType:"text/plain", isFetched:'yes', data:data]
+                        }
+                        else {
+                            database.attachments << [ownerID: res2ver, ownerType: "resource2versions", fileName: sf.getAbsolutePath(), mimeType:"text/plain", isFetched:'no']
+                        }
+                    }
+                    else {
+                        def mimeType = sf.getType().equals(DescriptorLanguage.FileType.DOCKERFILE) ? "application/octet-stream" : "text/plain"
+                        database.attachments << [ownerID: res2ver, ownerType: "resource2versions", fileName:  sf.getAbsolutePath(), mimeType:mimeType, isFetched:'no']
+                    }
                 }
             }
         }
@@ -173,7 +195,6 @@ class AddRepository extends GOperationSupport {
                 }
             }
         }
-
         return result.toString()
     }
 

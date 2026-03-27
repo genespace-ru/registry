@@ -28,9 +28,13 @@ attachments:
         defaultValue: '''application/octet-stream'''
     - data:
         type: BLOB
+        canBeNull: true
     - description:
         type: VARCHAR(255)
         canBeNull: true
+    - isFetched:
+        type: ENUM(yes, no) 
+        defaultValue: '''no'''
     - whoInserted___:
         type: VARCHAR(100)
         canBeNull: true
@@ -43,6 +47,13 @@ attachments:
     - modificationDate___:
         type: DATETIME
         canBeNull: true
+    indices:
+        - IDX_FILENAME:
+            unique: true
+            columns: 
+            - ownerID
+            - ownerType
+            - fileName
   queries:
   - All records:
       type: 1D
@@ -66,3 +77,4 @@ attachments:
                 AS "Who Created" 
         FROM attachments a 
         ORDER BY a.creationDate___ DESC
+    

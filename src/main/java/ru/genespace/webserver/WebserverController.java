@@ -138,8 +138,8 @@ public class WebserverController extends BaseControllerSupport
             Long ownerId = Long.parseLong( owner );
             
             CachedContentManager cache = new CachedContentManager( db,ownerId , ownertype );
-            content = cache.getFileContentText( filepath );
-            if( content == null )
+            Object contentObj = cache.getFileContent( filepath );
+            if( contentObj == null )
             {
                 QRec info = getGithubParams( ownerId, ownertype );
                 String repositoryName = info.getString( "repository" );
@@ -157,7 +157,11 @@ public class WebserverController extends BaseControllerSupport
                     content = MarkdownHelper.resolveRelativeImages( content, repoUrlStr, "?raw=true" );
                 }
                 if( content != null )
-                    cache.setFileContentText( filepath, content );
+                    cache.setFileContent( filepath, content );
+            }
+            else if( contentObj instanceof String )
+            {
+                content = (String) contentObj;
             }
             if(content != null)
             {
@@ -232,8 +236,8 @@ public class WebserverController extends BaseControllerSupport
 
             CachedContentManager cache = new CachedContentManager( db, ownerId, "resource2versions" );
             String imageFilePath = "DAG";
-            BufferedImage imageObj = cache.getFileContentImage( imageFilePath );
-            if( imageObj != null )
+            Object imageObj = cache.getFileContent( imageFilePath );
+            if( imageObj != null && imageObj instanceof BufferedImage )
             {
                 resp.setContentType( "image/png" );
                 ImageGenerator.encodeImage( (BufferedImage) imageObj, "PNG", out );
@@ -276,7 +280,7 @@ public class WebserverController extends BaseControllerSupport
                 BufferedImage image = DiagramImageGenerator.generateDiagramImage( diagram );
                 ImageGenerator.encodeImage( image, "PNG", out );
                 
-                cache.setFileContentImage( imageFilePath, image );
+                cache.setFileContent( imageFilePath, image );
             }
 
         }

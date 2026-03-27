@@ -1,14 +1,9 @@
 package ru.genespace.content;
 
-import java.awt.image.BufferedImage;
-
 public interface ContentManager
 {
-    public String getFileContentText(String fileName);
+    public Object getFileContent(String fileName);
 
-    public BufferedImage getFileContentImage(String fileName);
+    public void setFileContent(String fileName, Object content);
 
-    public void setFileContentText(String fileName, String fileText);
-
-    public void setFileContentImage(String fileName, BufferedImage image);
 }
