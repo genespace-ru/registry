@@ -158,15 +158,15 @@ class AddRepository extends GOperationSupport {
                         if(content != null) {
                             byte[] data = content.getBytes("UTF-8")
                             //byte[] data = Base64.getDecoder().decode(content)
-                            database.attachments << [ownerID: res2ver, ownerType: "resource2versions", fileName: sf.getAbsolutePath(), mimeType:"text/plain", isFetched:'yes', data:data]
+                            database.attachments << [ownerID: res2ver, ownerType: "resource2versions", fileName: sf.getAbsolutePath(), mimeType:"text/plain", isFetched:'yes', data:data, description:"workflow file"]
                         }
                         else {
-                            database.attachments << [ownerID: res2ver, ownerType: "resource2versions", fileName: sf.getAbsolutePath(), mimeType:"text/plain", isFetched:'no']
+                            database.attachments << [ownerID: res2ver, ownerType: "resource2versions", fileName: sf.getAbsolutePath(), mimeType:"text/plain", isFetched:'no', description:"workflow file"]
                         }
                     }
                     else {
                         def mimeType = sf.getType().equals(DescriptorLanguage.FileType.DOCKERFILE) ? "application/octet-stream" : "text/plain"
-                        database.attachments << [ownerID: res2ver, ownerType: "resource2versions", fileName:  sf.getAbsolutePath(), mimeType:mimeType, isFetched:'no']
+                        database.attachments << [ownerID: res2ver, ownerType: "resource2versions", fileName:  sf.getAbsolutePath(), mimeType:mimeType, isFetched:'no', description:"workflow file"]
                     }
                 }
             }

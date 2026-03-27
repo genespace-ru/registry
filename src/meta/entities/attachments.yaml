@@ -77,4 +77,21 @@ attachments:
                 AS "Who Created" 
         FROM attachments a 
         ORDER BY a.creationDate___ DESC
+  - ResourceFiles:
+      roles: '@AllRolesExceptGuest'
+      type: 1D_unknown
+      layout: '{"mode":"named"}'
+      invisible: true
+      code: |-
+        SELECT
+            at.ownerID AS "ID",
+            at.fileName AS "filename",
+            at.mimeType AS "filetype",
+            at.description AS "description"
+        FROM attachments at 
+        WHERE at.mimeType='text/plain' 
+        <if parameter="resource2versions">
+            AND at.ownerID = <parameter:resource2versions/>
+            AND at.ownerType = 'resource2versions'
+        </if>
     
