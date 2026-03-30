@@ -19,11 +19,16 @@ const ResourceFilePage = (props) => {
         .filter(item => item.filepath)
         .filter(item => item.description=="workflow file")
         .map(item => item.filepath);
+    const fileNames = {};
+    for(var i=0; i < filepaths.length; i++)
+    {
+        let filename = filepaths[i].replace(/^\/|\/$/g, '');
+        fileNames[filepaths[i]] = filename;
+    }
     // Get selected item data
     const selectedItem = dataItems.find(item => item.filepath === selectedFilepath);
     const resource2version = selectedItem?.resource2version || '';
     const filepath = selectedFilepath ? encodeURIComponent(selectedFilepath) : '';
-    
     const fileUrl = filepath 
         ? `webserver/web/content?resource2versions=${resource2version}&filepath=${filepath}` 
         : '';
@@ -114,7 +119,7 @@ const ResourceFilePage = (props) => {
                     >
                         {filepaths.map((filepath, index) => (
                             <option key={index} value={filepath}>
-                                {filepath}
+                                {fileNames[filepath]}
                             </option>
                         ))}
                     </select>
@@ -139,7 +144,7 @@ const ResourceFilePage = (props) => {
             {!loading && !error && selectedFilepath && (
                 <div className="border p-3 rounded bg-light">
                     <h6 className="mb-2">
-                        Файл: <strong>{selectedFilepath}</strong>
+                        Файл: <strong>{fileNames[selectedFilepath]}</strong>
                     </h6>
                     <pre 
                         className="mb-0" 
