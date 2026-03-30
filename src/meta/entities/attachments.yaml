@@ -80,7 +80,7 @@ attachments:
   - ResourceFiles:
       roles: '@AllRolesExceptGuest'
       type: 1D_unknown
-      layout: '{"mode":"named"}'
+      layout: '{"mode":"named","defaultPageLimit":100}'
       invisible: true
       code: |-
         SELECT
