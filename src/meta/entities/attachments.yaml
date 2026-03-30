@@ -87,11 +87,13 @@ attachments:
             at.ownerID AS "ID",
             at.fileName AS "filename",
             at.mimeType AS "filetype",
-            at.description AS "description"
+            at.description AS "description",
+            r2v.primaryDescriptorPath AS "primary"
         FROM attachments at 
+        JOIN resource2versions r2v ON r2v.ID=at.ownerID 
         WHERE at.mimeType='text/plain' 
+        AND at.ownerType = 'resource2versions'
         <if parameter="resource2versions">
             AND at.ownerID = <parameter:resource2versions/>
-            AND at.ownerType = 'resource2versions'
         </if>
     

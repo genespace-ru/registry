@@ -18,6 +18,20 @@ const ResourceFilePage = (props) => {
     const filepaths = dataItems
         .filter(item => item.filepath)
         .filter(item => item.description=="workflow file")
+        .sort(function(fp1, fp2){
+            //TODO: sort, primary is first, other sorted lexicographycally but top-level first
+            if(fp1.primary == fp1.filepath)
+                return -1;
+            if(fp2.primary == fp2.filepath)
+                return 1;
+            var nsl1 = (fp1.filepath.match(/\//g) || []).length;
+            var nsl2 = (fp2.filepath.match(/\//g) || []).length;
+            if(nsl1 == nsl2)
+                return fp1.filepath.localeCompare(fp2.filepath);
+            else
+                return nsl1 - nsl2; 
+            
+        })
         .map(item => item.filepath);
     const fileNames = {};
     for(var i=0; i < filepaths.length; i++)
@@ -189,7 +203,8 @@ registerPage('resourceFilePage', ResourceFilePage, (frontendParams, params) => {
                 resource2version: cells.ID.value,
                 filepath: cells.filename.value,
                 filetype: cells.filetype.value,
-                description: cells.description.value
+                description: cells.description.value,
+                primary: cells.primary.value
             });
         }
         console.log("dataArray", dataArray);
