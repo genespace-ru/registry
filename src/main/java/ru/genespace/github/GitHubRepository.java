@@ -2,7 +2,6 @@ package ru.genespace.github;
 
 import static ru.genespace.dockstore.Constants.DOCKSTORE_YML_PATH;
 import static ru.genespace.dockstore.Constants.DOCKSTORE_YML_PATHS;
-import static ru.genespace.dockstore.Constants.SKIP_COMMIT_ID;
 
 import java.io.File;
 import java.io.IOException;
@@ -10,7 +9,6 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -56,7 +54,6 @@ import com.google.common.collect.Lists;
 
 import okhttp3.Cache;
 import okhttp3.OkHttpClient;
-import ru.genespace.content.ContentManager;
 import ru.genespace.dockstore.AppTool;
 import ru.genespace.dockstore.Author;
 import ru.genespace.dockstore.DescriptorLanguage;
@@ -111,6 +108,7 @@ public class GitHubRepository
 
     private static OkHttpClient okHttpClient = null;
     private static Cache cache = null;
+    private Map<String, List<GHContent>> cachedDirectories;
     /**
      * @param githubTokenUsername the username for githubTokenContent
      * @param githubTokenContent authorization token
@@ -176,6 +174,8 @@ public class GitHubRepository
                 throw new RuntimeException( factoryException );
             }
         }
+        if( cachedDirectories == null )
+            cachedDirectories = new HashMap<>();
     }
 
     public GitHubRepository(long installationId)
@@ -474,8 +474,9 @@ public class GitHubRepository
         {
             return null;
         }
-        List<GHContent> directoryContent = repo.getDirectoryContent( fullPathNoEndSeparator, reference );
-
+        List<GHContent> directoryContent = getGithubDirectoryContent( repo, reference, fullPathNoEndSeparator );
+        if( directoryContent == null )
+            return null;
         String stripStart = StringUtils.stripStart( fileName, "/" );
         Optional<GHContent> firstMatch = directoryContent.stream().filter( content -> stripStart.equals( content.getPath() ) ).findFirst();
         if( firstMatch.isPresent() )
@@ -507,6 +508,25 @@ public class GitHubRepository
         }
 
         return null;
+    }
+
+    private List<GHContent> getGithubDirectoryContent(GHRepository repo, String reference, String fullPathNoEndSeparator)
+    {
+        String repoId = repo.getFullName();
+        String fullKey = repoId + "@" + reference + "@" + fullPathNoEndSeparator;
+        if( cachedDirectories.containsKey( fullKey ) )
+            return cachedDirectories.get( fullKey );
+        List<GHContent> content = null;
+        try
+        {
+            content = repo.getDirectoryContent( fullPathNoEndSeparator, reference );
+        }
+        catch (Exception e)
+        {
+            LOG.error( "Can not get content of directory " + fullPathNoEndSeparator + ": " + e.getMessage() );
+        }
+        cachedDirectories.put( fullKey, content );
+        return content;
     }
 
     public GHRateLimit getGhRateLimitQuietly()
@@ -1450,7 +1470,9 @@ public class GitHubRepository
         try
         {
             repo = github.getRepository( repositoryId );
-            List<GHContent> directoryContent = repo.getDirectoryContent( pathToDirectory, reference );
+            List<GHContent> directoryContent = getGithubDirectoryContent( repo, reference, pathToDirectory );
+            if( directoryContent == null )
+                return null;
             return directoryContent.stream().map( GHContent::getName ).toList();
         }
         catch (IOException e)
