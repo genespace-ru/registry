@@ -91,7 +91,7 @@ class AddRepository extends GOperationSupport {
             else if(wflName == null)
                 wflName = "undefined"
             def topic = workflow.getTopic()
-            if(topic.length() > 200)
+            if(topic != null && topic.length() > 200)
                 topic = topic.substring(0,200 )
             def wflID = database.resources << [repository: repoID, name: wflName, type: "workflow", language: lang, topic: topic]
             for(WorkflowVersion version: versions) {
