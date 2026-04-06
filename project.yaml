@@ -22,6 +22,8 @@ registry:
   - docker
   - resource2docker
   - attachments
+  - authors
+  - resource2author
   scripts:
   - Post-db
   - dictionaries

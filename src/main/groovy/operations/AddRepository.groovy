@@ -193,7 +193,12 @@ class AddRepository extends GOperationSupport {
         ORCIDHelper helper = isOrcid ? getORCIDHelper():null
         for(Author author: authors) {
 
-            def authorDB = isOrcid ? database.authors.getBy( [orcid: ((OrcidAuthor)author).getOrcid()]) : database.authors.getBy( [name: author.getName(), email: author.getEmail()])
+            def authorDB ;
+            if(isOrcid)
+                authorDB = database.authors.getBy( [orcid: ((OrcidAuthor)author).getOrcid()])
+            else
+                authorDB = database.authors.getBy( [name: author.getName(), email: author.getEmail()])
+
             def authorID = authorDB ? authorDB.$ID : null
             if(authorID == null) {
                 def params = [:]
