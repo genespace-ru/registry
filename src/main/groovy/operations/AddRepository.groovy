@@ -1,21 +1,28 @@
 package operations
 
+import java.awt.image.BufferedImage
 import java.sql.Timestamp
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.Map.Entry
 import java.util.logging.Level
 import java.util.logging.Logger
+import java.util.regex.Matcher
+import java.util.regex.Pattern
+
+import javax.imageio.ImageIO
 
 import javax.json.JsonObject
 import javax.json.JsonString
+import javax.security.sasl.AuthorizeCallback
+
 import org.json.JSONObject
 import com.developmentontheedge.be5.databasemodel.util.DpsUtils
-import com.developmentontheedge.be5.server.model.Base64File
 import com.developmentontheedge.be5.server.operations.support.GOperationSupport
 
 import com.developmentontheedge.be5.operation.OperationResult
 
+import ru.genespace.dockstore.ORCIDHelper
 import ru.genespace.dockstore.SourceFile
 import ru.genespace.dockstore.Validation
 import ru.genespace.dockstore.Workflow
@@ -26,8 +33,11 @@ import ru.genespace.dockstore.yaml.YamlWorkflow
 import ru.genespace.github.GitHubManager
 import ru.genespace.github.GitHubRepository
 import ru.genespace.webserver.WebserverController
+import ru.genespace.dockstore.Author
 import ru.genespace.dockstore.DescriptorLanguage
 import ru.genespace.dockstore.Image
+import ru.genespace.dockstore.OrcidAuthor
+
 import static ru.genespace.dockstore.Constants.DOCKSTORE_YML_PATHS_SET
 
 class AddRepository extends GOperationSupport {
@@ -137,6 +147,7 @@ class AddRepository extends GOperationSupport {
                 def res2ver = database.resource2versions << [resource: wflID, version:versionID, valid: version.isValid() ? 'yes' : 'no', primaryDescriptorPath: primaryDescriptorPath,
                     readMePath: readmePath, defaultVersion: isDefaultVersion]
 
+                //docker images
                 for(Image image: version.getImages()) {
                     def dockerDB = database.docker.getBy( [image: image.getImageID()])
                     def dockerID = dockerDB ? dockerDB.$ID : null
@@ -149,29 +160,86 @@ class AddRepository extends GOperationSupport {
                         database.resource2docker << [docker: dockerID, resource: wflID, version: versionID ]
                 }
 
-
+                //attachments
                 for(SourceFile sf: version.getSourceFiles()) {
                     if(DOCKSTORE_YML_PATHS_SET.contains(sf.getPath()))
                         continue;
-                    else if( sf.getPath().equals(primaryDescriptorPath ) ) {
+                    if( sf.getPath().equals(primaryDescriptorPath ) ) {
                         def content = sf.getContent()
                         if(content != null) {
                             byte[] data = content.getBytes("UTF-8")
-                            //byte[] data = Base64.getDecoder().decode(content)
                             database.attachments << [ownerID: res2ver, ownerType: "resource2versions", fileName: sf.getAbsolutePath(), mimeType:"text/plain", isFetched:'yes', data:data, description:"workflow file"]
                         }
                         else {
-                            database.attachments << [ownerID: res2ver, ownerType: "resource2versions", fileName: sf.getAbsolutePath(), mimeType:"text/plain", isFetched:'no', description:"workflow file"]
+                            def mimeType = getMimeType(sf)
+                            database.attachments << [ownerID: res2ver, ownerType: "resource2versions", fileName: sf.getAbsolutePath(), mimeType:mimeType, isFetched:'no', description:"workflow file"]
                         }
                     }
                     else {
-                        def mimeType = sf.getType().equals(DescriptorLanguage.FileType.DOCKERFILE) ? "application/octet-stream" : "text/plain"
+                        def mimeType = getMimeType(sf)
                         database.attachments << [ownerID: res2ver, ownerType: "resource2versions", fileName:  sf.getAbsolutePath(), mimeType:mimeType, isFetched:'no', description:"workflow file"]
                     }
                 }
+
+                //authors
+                fillAuthors(version.getAuthors(), wflID, versionID, false)
+                fillAuthors(version.getOrcidAuthors(), wflID, versionID, true)
             }
         }
         setResult(OperationResult.finished())
+    }
+
+    private void fillAuthors(Set<Author> authors, long wflID, long versionID, boolean isOrcid) {
+        ORCIDHelper helper = isOrcid ? getORCIDHelper():null
+        for(Author author: authors) {
+
+            def authorDB = isOrcid ? database.authors.getBy( [orcid: ((OrcidAuthor)author).getOrcid()]) : database.authors.getBy( [name: author.getName(), email: author.getEmail()])
+            def authorID = authorDB ? authorDB.$ID : null
+            if(authorID == null) {
+                def params = [:]
+                if(isOrcid)
+                    helper.fillOrcidInfo(((OrcidAuthor)author))
+                if(author.getName() == null)
+                    continue
+                params = [name: author.getName()]
+                if(author.getEmail())
+                    params.email= author.getEmail()
+                if(author.getRole())
+                    params.role = author.getRole()
+                if(author.getAffiliation())
+                    params.affiliation = author.getAffiliation()
+                if(isOrcid)
+                    params.orcid=((OrcidAuthor)author).getOrcid()
+                authorID = database.authors << params
+            }
+            def res2author = database.resource2author.getBy( [author: authorID, resource: wflID, version: versionID])
+            if(res2author == null)
+                database.resource2author << [author: authorID, resource: wflID, version: versionID ]
+        }
+    }
+
+    private static final Pattern IMAGE_PATTERN = Pattern.compile(/[^\\s]+(\\.(?i)(jpg|png|gif|bmp))$/)
+
+    def isImageFile(filename) {
+        def imageRegex = ~/([^\\s]+(\.(?i)(jpe?g|png|gif|bmp|webp|tiff?)))$/
+        // The find operator returns a Matcher object. Calling asBoolean() checks for a match.
+        return (filename =~ imageRegex).asBoolean()
+    }
+
+    private String getMimeType(SourceFile sf) {
+
+        if( sf.getType().equals(DescriptorLanguage.FileType.DOCKERFILE) )
+            return  "application/octet-stream"
+        if(isImageFile(sf.getAbsolutePath()))
+            return "image/png"
+        return "text/plain"
+    }
+
+    private ORCIDHelper getORCIDHelper() {
+        def token = db.getString( "SELECT setting_value FROM systemsettings WHERE section_name='registry' AND setting_name='orcid_token'" )
+        if(token == null)
+            return null
+        return new ORCIDHelper(token)
     }
 
     /**

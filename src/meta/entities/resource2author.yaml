@@ -1,0 +1,32 @@
+resource2author:
+  type: collection
+  doc: Link between resources with versions and authors
+  primaryKey: ID
+  
+  scheme:
+    columns:
+    - ID:
+        type: KEYTYPE
+        autoIncrement: true
+        primaryKey: true
+    - resource:
+        type: KEYTYPE
+        reference: resources.ID
+        doc: resource
+    - version:
+        type: KEYTYPE
+        reference: versions.ID
+        doc: version
+    - author:
+        type: KEYTYPE
+        reference: authors.ID
+        doc: author
+                    
+    indices:
+    - IDX_RESOURCE_AUTHOR:
+        columns: resource
+    - IDX_AUTHOR:
+        columns: author
+
+
+                  

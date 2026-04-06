@@ -68,7 +68,7 @@ import ru.genespace.dockstore.VersionTypeValidation;
 import ru.genespace.dockstore.Workflow;
 import ru.genespace.dockstore.WorkflowVersion;
 import ru.genespace.github.GitHubRepository;
-import ru.genespace.github.StringContentProvider;
+import ru.genespace.github.GitHubFileContentProvider;
 import ru.genespace.misc.CustomLoggedException;
 
 /**
@@ -87,7 +87,7 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
     @Override
     public WorkflowVersion parseWorkflowContent(String filepath, String content, Set<SourceFile> sourceFiles, WorkflowVersion version)
     {
-        //this is where we can look for things like Nextflow config files or maybe a future Dockstore.yml
+        //this is where we can look for things like Nextflow config files
         final Configuration configuration = grabConfig( content, String.valueOf( version.getId() ) );
         String descriptionInProgress = null;
         if( configuration.containsKey( "manifest.description" ) )
@@ -128,7 +128,7 @@ public class NextflowHandler extends AbstractLanguageHandler implements Language
         return version;
     }
 
-    public String getMainWorkflowScript(String mainDescriptorContent, String repositoryId, String repositoryRef, StringContentProvider scp, String filepath)
+    public String getMainWorkflowScript(String mainDescriptorContent, String repositoryId, String repositoryRef, GitHubFileContentProvider scp, String filepath)
     {
         Random random = new Random();
         long randomLong = random.nextLong();

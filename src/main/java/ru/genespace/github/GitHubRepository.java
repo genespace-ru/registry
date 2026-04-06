@@ -5,10 +5,9 @@ import static ru.genespace.dockstore.Constants.DOCKSTORE_YML_PATHS;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -21,6 +20,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -29,6 +29,7 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Strings;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpStatus;
 import org.kohsuke.github.GHBlob;
@@ -44,16 +45,17 @@ import org.kohsuke.github.GitHubAbuseLimitHandler;
 import org.kohsuke.github.GitHubBuilder;
 import org.kohsuke.github.GitHubRateLimitHandler;
 import org.kohsuke.github.connector.GitHubConnectorResponse;
-import org.kohsuke.github.extras.okhttp3.ObsoleteUrlFactory;
 import org.kohsuke.github.extras.okhttp3.OkHttpGitHubConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.developmentontheedge.be5.database.DbService;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 
 import okhttp3.Cache;
 import okhttp3.OkHttpClient;
+import ru.biosoft.util.TempFiles;
 import ru.genespace.dockstore.AppTool;
 import ru.genespace.dockstore.Author;
 import ru.genespace.dockstore.DescriptorLanguage;
@@ -61,6 +63,7 @@ import ru.genespace.dockstore.DescriptorLanguageSubclass;
 import ru.genespace.dockstore.EntryType;
 import ru.genespace.dockstore.Image;
 import ru.genespace.dockstore.Notebook;
+import ru.genespace.dockstore.ORCIDHelper;
 import ru.genespace.dockstore.OrcidAuthor;
 import ru.genespace.dockstore.SourceFile;
 import ru.genespace.dockstore.Validation;
@@ -82,9 +85,7 @@ public class GitHubRepository
 {
 
     private final GitHub github;
-    private final String githubTokenUsername;
     private String gitUsername;
-
     public static final Logger LOG = LoggerFactory.getLogger( GitHubRepository.class );
     public static final long MAXIMUM_FILE_DOWNLOAD_SIZE = 10L * 1024L * 1024L;
     public static final int GITHUB_MAX_CACHE_AGE_SECONDS = 30;
@@ -101,7 +102,7 @@ public class GitHubRepository
     private static final int KILOBYTES_IN_MEGABYTE = 1024;
     private static final int CACHE_IN_MB = 100;
 
-    public static final String DOCKSTORE_WEB_CACHE = "/tmp/dockstore-web-cache";
+    public static final String REGISTRY_WEB_CACHE = "registry-web-cache";
 
     public static final Pattern GIT_BRANCH_TAG_PATTERN = Pattern
             .compile( "^refs/(tags|heads)/((?!.*//)(?!.*\\^)(?!.*:)(?!.*\\\\)(?!.*@)(?!.*\\[)(?!.*\\?)(?!.*~)(?!.*\\.\\.)[\\p{Punct}\\p{L}\\d\\-_/]+)$" );
@@ -109,15 +110,15 @@ public class GitHubRepository
     private static OkHttpClient okHttpClient = null;
     private static Cache cache = null;
     private Map<String, List<GHContent>> cachedDirectories;
+    private Map<String, GHRepository> cachedRepositories;
+
     /**
      * @param githubTokenUsername the username for githubTokenContent
      * @param githubTokenContent authorization token
      */
-    public GitHubRepository(String githubTokenUsername, String githubTokenContent, Long installationId)
+    public GitHubRepository(String githubTokenUsername, String githubTokenContent)
     {
         initialize();
-        this.githubTokenUsername = githubTokenUsername;
-        this.gitUsername = githubTokenUsername != null ? githubTokenUsername : "Unauthenticated";
         try
         {
             if( githubTokenUsername != null && githubTokenContent != null )
@@ -157,36 +158,14 @@ public class GitHubRepository
         // match HttpURLConnection which does not have a timeout by default
         OkHttpClient.Builder builder = new OkHttpClient().newBuilder();
         okHttpClient = builder.cache( cache ).connectTimeout( 0, TimeUnit.SECONDS ).readTimeout( 0, TimeUnit.SECONDS ).writeTimeout( 0, TimeUnit.SECONDS ).build();
-        try
-        {
-            // this can only be called once per JVM, a factory exception is thrown in our tests
-            URL.setURLStreamHandlerFactory( new ObsoleteUrlFactory( okHttpClient ) );
-        }
-        catch (Error factoryException)
-        {
-            if( factoryException.getMessage().contains( "factory already defined" ) )
-            {
-                LOG.debug( "OkHttpClient already registered, skipping" );
-            }
-            else
-            {
-                LOG.error( "Could not create web cache, factory exception", factoryException );
-                throw new RuntimeException( factoryException );
-            }
-        }
+
         if( cachedDirectories == null )
             cachedDirectories = new HashMap<>();
+
+        if( cachedRepositories == null )
+            cachedRepositories = new HashMap<>();
     }
 
-    public GitHubRepository(long installationId)
-    {
-        this( null, null, installationId );
-    }
-
-    public GitHubRepository(String githubTokenUsername, String githubTokenContent)
-    {
-        this( githubTokenUsername, githubTokenContent, null );
-    }
 
     /**
      * Get a github client builder with everything configured except for auth
@@ -196,15 +175,13 @@ public class GitHubRepository
      */
     public static GitHubBuilder getBuilder(String cacheNamespace)
     {
-        //TODO: fix
         OkHttpClient.Builder builder = okHttpClient.newBuilder();
         builder.eventListener( new CacheHitListener( GitHubRepository.class.getSimpleName(), cacheNamespace ) );
         builder.cache( getCache( null ) );
         OkHttpClient build = builder.build();
-        // Must set the cache max age otherwise kohsuke assumes 0 which significantly slows down our GitHub requests
         OkHttpGitHubConnector okHttp3Connector = new OkHttpGitHubConnector( build, GITHUB_MAX_CACHE_AGE_SECONDS );
-        GitHubBuilder gitHubBuilder = new GitHubBuilder().withAbuseLimitHandler( new FailAbuseLimitHandler( cacheNamespace ) ).withConnector( okHttp3Connector );
-        gitHubBuilder = gitHubBuilder.withRateLimitHandler( new FailRateLimitHandler( cacheNamespace ) );
+        GitHubBuilder gitHubBuilder = new GitHubBuilder().withAbuseLimitHandler( new FailAbuseLimitHandler( cacheNamespace ) ).withConnector( okHttp3Connector )
+                .withRateLimitHandler( new FailRateLimitHandler( cacheNamespace ) );
         return gitHubBuilder;
     }
 
@@ -226,10 +203,7 @@ public class GitHubRepository
         final File cacheDir;
         try
         {
-            // let's try using the same cache each time
-            // not sure how corruptible/non-corruptible the cache is
-            // namespace cache when testing on circle ci
-            cacheDir = Files.createDirectories( Paths.get( DOCKSTORE_WEB_CACHE + (suffix == null ? "" : "/" + suffix) ) ).toFile();
+            cacheDir = TempFiles.dir( REGISTRY_WEB_CACHE + (suffix == null ? "" : "/" + suffix) );
         }
         catch (IOException e)
         {
@@ -284,20 +258,31 @@ public class GitHubRepository
      * @return GitHub repository
      * @throws Exception
      */
+    AtomicInteger numRepoCall = new AtomicInteger( 0 );
     public GHRepository getRepository(String repositoryId)
     {
+        numRepoCall.incrementAndGet();
+
         GHRepository repository;
+        if( cachedRepositories.containsKey( repositoryId ) )
+            return cachedRepositories.get( repositoryId );
+
         try
         {
             repository = github.getRepository( repositoryId );
+            cachedRepositories.put( repositoryId, repository );
         }
         catch (IOException e)
         {
-            LOG.error( gitUsername + ": Cannot retrieve the workflow from GitHub", e );
+            LOG.error( "Cannot retrieve GitHub repository {} for user {} ", repositoryId, gitUsername, e );
             throw new CustomLoggedException( "Could not reach GitHub, please try again later" );
         }
-
         return repository;
+    }
+
+    public int getRepoCallCounter()
+    {
+        return numRepoCall.get();
     }
 
     public Optional<SourceFile> getDockstoreYml(String repositoryId, String gitReference)
@@ -384,13 +369,13 @@ public class GitHubRepository
                                 LOG.warn( "Could not process {} at {}, is likely a submodule that is not on GitHub", originalFileName, originalReference );
                                 return null;
                             }
-                            URL otherRepoURL = new URL( otherRepo );
+                            URL otherRepoURL = URI.create( otherRepo ).toURL();
                             // reassign repo and reference
                             final String[] split = otherRepoURL.getPath().split( "/" );
                             final int indexPastReposPrefix = 2;
                             String newRepositoryId = split[indexPastReposPrefix] + "/" + split[indexPastReposPrefix + 1];
                             String newReference = split[split.length - 1];
-                            repo = github.getRepository( newRepositoryId );
+                            repo = getRepository( newRepositoryId );
                             reference = newReference;
 
                             // discard the old folders we've looked at already and start looking through folders in the submodule repository
@@ -534,7 +519,6 @@ public class GitHubRepository
         GHRateLimit startRateLimit = null;
         try
         {
-            // github.rateLimit() was deprecated and returned a much lower limit, low balling our rate limit numbers
             startRateLimit = github.getRateLimit();
         }
         catch (IOException e)
@@ -615,78 +599,6 @@ public class GitHubRepository
         return ArrayUtils.addAll( branches, tags );
     }
 
-    //    public Workflow setupWorkflowVersions(String repositoryId, Workflow workflow, Optional<Workflow> existingWorkflow, Map<String, WorkflowVersion> existingDefaults,
-    //            Optional<String> versionName, boolean hardRefresh)
-    //    {
-    //        GHRateLimit startRateLimit = getGhRateLimitQuietly();
-    //
-    //        // Get repository from GitHub
-    //        GHRepository repository = getRepository( repositoryId );
-    //
-    //        // when getting a full workflow, look for versions and check each version for valid workflows
-    //        List<GitReferenceInfo> references = new ArrayList<>();
-    //
-    //        GHRef[] refs = {};
-    //        try
-    //        {
-    //            refs = getBranchesAndTags( repository );
-    //            for ( GHRef ref : refs )
-    //            {
-    //                GitReferenceInfo gitReferenceInfo = getRef( ref, repository );
-    //                if( gitReferenceInfo != null && (versionName.isEmpty() || Objects.equals( versionName.get(), gitReferenceInfo.refName() )) )
-    //                {
-    //                    references.add( gitReferenceInfo );
-    //                }
-    //            }
-    //        }
-    //        catch (GHFileNotFoundException e)
-    //        {
-    //            // seems to legitimately do this when the repo has no tags or releases
-    //            LOG.debug( "repo had no releases or tags: " + repositoryId, e );
-    //        }
-    //        catch (IOException e)
-    //        {
-    //            LOG.info( "%s: Cannot get branches or tags for workflow {}".formatted( gitUsername ), e );
-    //            throw new CustomLoggedException( "Could not reach GitHub, please try again later" );
-    //        }
-    //
-    //        // For each branch (reference) found, create a workflow version and find the associated descriptor files
-    //        for ( GitReferenceInfo ref : references )
-    //        {
-    //            if( ref != null )
-    //            {
-    //                final String branchName = ref.refName();
-    //                final Date lastModified = ref.branchDate();
-    //                final String commitId = ref.sha();
-    //                if( toRefreshVersion( commitId, existingDefaults.get( branchName ), hardRefresh ) )
-    //                {
-    //                    WorkflowVersion version = setupWorkflowVersionsHelper( workflow, ref, existingWorkflow, existingDefaults, repository, null, versionName );
-    //                    if( version != null )
-    //                    {
-    //                        workflow.addWorkflowVersion( version );
-    //                    }
-    //                }
-    //                else
-    //                {
-    //                    // Version didn't change, but we don't want to delete
-    //                    // Add a stub version with commit ID set to an ignore value so that the version isn't deleted
-    //                    LOG.info( "%s: Skipping GitHub reference: %s".formatted( gitUsername, ref ) );
-    //                    WorkflowVersion version = new WorkflowVersion();
-    //                    version.setName( branchName );
-    //                    version.setReference( branchName );
-    //                    version.setLastModified( lastModified );
-    //                    version.setCommitID( SKIP_COMMIT_ID );
-    //                    workflow.addWorkflowVersion( version );
-    //                }
-    //            }
-    //        }
-    //
-    //        GHRateLimit endRateLimit = getGhRateLimitQuietly();
-    //        reportOnRateLimit( "setupWorkflowVersions", startRateLimit, endRateLimit );
-    //
-    //        return workflow;
-    //    }
-
     /**
      * Retrieve important information related to a reference
      * 
@@ -703,11 +615,11 @@ public class GitHubRepository
         boolean toIgnore = false;
         if( refName.startsWith( "refs/heads/" ) )
         {
-            refName = StringUtils.removeStart( refName, "refs/heads/" );
+            refName = Strings.CS.removeStart( refName, "refs/heads/" );
         }
         else if( refName.startsWith( "refs/tags/" ) )
         {
-            refName = StringUtils.removeStart( refName, "refs/tags/" );
+            refName = Strings.CS.removeStart( refName, "refs/tags/" );
         }
         else if( refName.startsWith( "refs/pull/" ) )
         {
@@ -742,7 +654,7 @@ public class GitHubRepository
 
     // When a user creates an annotated tag, the object type will be a tag. Otherwise, it's probably of type commit?
     // The documentation doesn't list the possibilities https://github-api.kohsuke.org/apidocs/org/kohsuke/github/GHRef.GHObject.html#getType(),
-    // but I'll assume it mirrors the 4 Git types: blobs, trees, commits, and tags.
+    // Assume it mirrors the 4 Git types: blobs, trees, commits, and tags.
     private String getCommitSHA(GHRef ref, GHRepository repository, String refName) throws IOException
     {
         String sha;
@@ -762,8 +674,6 @@ public class GitHubRepository
         }
         else
         {
-            // I'm not sure when this would happen.
-            // Keeping the sha as-is is probably wrong, but we should mimic the behaviour from before since this is a hotfix.
             sha = ref.getObject().getSha();
             LOG.error( "Unsupported GitHub reference object. Unable to find commit ID for type: " + ref.getObject().getType() );
         }
@@ -888,7 +798,6 @@ public class GitHubRepository
      * @param existingDefaults Optional mapping of existing versions
      * @return Version with updated sourcefiles
      */
-    @SuppressWarnings("checkstyle:ParameterNumber")
     private WorkflowVersion setupWorkflowFilesForVersion(String calculatedPath, GitReferenceInfo ref, GHRepository repository, WorkflowVersion version,
             DescriptorLanguage.FileType identifiedType, Workflow workflow, Map<String, WorkflowVersion> existingDefaults)
     {
@@ -901,23 +810,6 @@ public class GitHubRepository
             {
                 SourceFile file = SourceFile.limitedBuilder().type( identifiedType ).content( decodedContent ).paths( calculatedPath ).build();
                 version = combineVersionAndSourcefile( repository.getFullName(), file, workflow, identifiedType, version, existingDefaults );
-
-                //                // Use default test parameter file if either new version or existing version that hasn't been edited
-                //                // TODO: why is this here? Does this code not have a counterpart in BitBucket and GitLab?
-                //                if (!version.isDirtyBit() && workflow.getDefaultTestParameterFilePath() != null) {
-                //                    String testJsonPath = workflow.getDefaultTestParameterFilePath();
-                //                    String testJsonContent = this.readFileFromRepo(testJsonPath, ref.refName(), repository);
-                //                    if (testJsonContent != null) {
-                //                        DescriptorLanguage.FileType testJsonType = workflow.getDescriptorType().getTestParamType();
-                //                        SourceFile testJson = SourceFile.limitedBuilder().type(testJsonType).content(testJsonContent).paths(testJsonPath).build();
-                //                        // Only add test parameter file if it hasn't already been added
-                //                        boolean hasDuplicate = version.getSourceFiles().stream().anyMatch((SourceFile sf) -> sf.getPath().equals(workflow.getDefaultTestParameterFilePath())
-                //                            && sf.getType() == testJson.getType());
-                //                        if (!hasDuplicate) {
-                //                            version.getSourceFiles().add(testJson);
-                //                        }
-                //                    }
-                //                }
             }
 
         }
@@ -1043,9 +935,8 @@ public class GitHubRepository
         // No need to check for null, has been validated
         String primaryDescriptorPath = theWf.getPrimaryDescriptorPath();
         version.setWorkflowPath( primaryDescriptorPath );
-        //commented
-        //        String readMePath = theWf.getReadMePath();
-        //        version.setReadMePath( readMePath );
+        String readMePath = theWf.getReadMePath();
+        version.setReadMePath( readMePath );
 
         String validationMessage = "";
         String fileContent = this.readFileFromRepo( primaryDescriptorPath, ref.refName(), repository );
@@ -1095,24 +986,23 @@ public class GitHubRepository
             LOG.info( "Could not find the file " + primaryDescriptorPath + " in repo " + repository );
             validationMessage = "Could not find the primary descriptor file '" + primaryDescriptorPath + "'.";
         }
-        //commented
-        //        try
-        //        {
-        //            DockstoreYamlHelper.validateDockstoreYamlProperties( dockstoreYml.getContent() ); // Validate that there are no unknown properties
-        //        }
-        //        catch (DockstoreYamlHelper.DockstoreYamlException ex)
-        //        {
-        //            validationMessage = validationMessage.isEmpty() ? ex.getMessage() : validationMessage + " " + ex.getMessage();
-        //        }
-        //
-        //        Map<String, String> validationMessageObject = new HashMap<>();
-        //        if( !validationMessage.isEmpty() )
-        //        {
-        //            validationMessageObject.put( DOCKSTORE_YML_PATH, validationMessage );
-        //        }
-        //        VersionTypeValidation dockstoreYmlValidationMessage = new VersionTypeValidation( validationMessageObject.isEmpty(), validationMessageObject );
-        //        Validation dockstoreYmlValidation = new Validation( DescriptorLanguage.FileType.DOCKSTORE_YML, dockstoreYmlValidationMessage );
-        //        version.addOrUpdateValidation( dockstoreYmlValidation );
+        try
+        {
+            DockstoreYamlHelper.validateDockstoreYamlProperties( dockstoreYml.getContent() ); // Validate that there are no unknown properties
+        }
+        catch (DockstoreYamlHelper.DockstoreYamlException ex)
+        {
+            validationMessage = validationMessage.isEmpty() ? ex.getMessage() : validationMessage + " " + ex.getMessage();
+        }
+
+        Map<String, String> validationMessageObject = new HashMap<>();
+        if( !validationMessage.isEmpty() )
+        {
+            validationMessageObject.put( DOCKSTORE_YML_PATH, validationMessage );
+        }
+        VersionTypeValidation dockstoreYmlValidationMessage = new VersionTypeValidation( validationMessageObject.isEmpty(), validationMessageObject );
+        Validation dockstoreYmlValidation = new Validation( DescriptorLanguage.FileType.DOCKSTORE_YML, dockstoreYmlValidationMessage );
+        version.addOrUpdateValidation( dockstoreYmlValidation );
 
         return version;
     }
@@ -1295,16 +1185,7 @@ public class GitHubRepository
     {
         //checkNotNull(fileName, "The fileName given is null.");
 
-        GHRepository repo;
-        try
-        {
-            repo = github.getRepository( repositoryId );
-        }
-        catch (IOException e)
-        {
-            LOG.error( gitUsername + ": IOException on readFile while trying to get the repository " + repositoryId + " " + e.getMessage(), e );
-            throw new CustomLoggedException( "Could not get repository " + repositoryId + " from GitHub." );
-        }
+        GHRepository repo = getRepository( repositoryId );
         return readFileFromRepo( fileName, reference, repo );
     }
 
@@ -1381,31 +1262,7 @@ public class GitHubRepository
             {
                 fileName = specificPath;
             }
-        }//!!!!! not processed but should?
-        //        else if( version instanceof Tag tag )
-        //        {
-        //            // Add for new descriptor types
-        //            if( fileType == DescriptorLanguage.FileType.DOCKERFILE )
-        //            {
-        //                fileName = tag.getDockerfilePath();
-        //            }
-        //            else if( fileType == DescriptorLanguage.FileType.DOCKSTORE_CWL )
-        //            {
-        //                if( Strings.isNullOrEmpty( tag.getCwlPath() ) )
-        //                {
-        //                    return null;
-        //                }
-        //                fileName = tag.getCwlPath();
-        //            }
-        //            else if( fileType == DescriptorLanguage.FileType.DOCKSTORE_WDL )
-        //            {
-        //                if( Strings.isNullOrEmpty( tag.getWdlPath() ) )
-        //                {
-        //                    return null;
-        //                }
-        //                fileName = tag.getWdlPath();
-        //            }
-        //        }
+        }
         else if( version instanceof WorkflowVersion workflowVersion )
         {
             fileName = workflowVersion.getWorkflowPath();
@@ -1466,20 +1323,11 @@ public class GitHubRepository
 
     public List<String> listFiles(String repositoryId, String pathToDirectory, String reference)
     {
-        GHRepository repo;
-        try
-        {
-            repo = github.getRepository( repositoryId );
+        GHRepository repo = getRepository( repositoryId );
             List<GHContent> directoryContent = getGithubDirectoryContent( repo, reference, pathToDirectory );
             if( directoryContent == null )
                 return null;
             return directoryContent.stream().map( GHContent::getName ).toList();
-        }
-        catch (IOException e)
-        {
-            LOG.error( gitUsername + ": IOException on listFiles in " + pathToDirectory + " for repository " + repositoryId + ":" + reference + ", " + e.getMessage(), e );
-            return null;
-        }
     }
 
     public Notebook initializeNotebookFromGitHub(String repositoryId, String format, String language, String workflowName)
@@ -1555,17 +1403,9 @@ public class GitHubRepository
         workflow.setDefaultWorkflowPath( DOCKSTORE_YML_PATH );
         workflow.setMode( WorkflowMode.DOCKSTORE_YML );
         GHRepository repository;
-        try
-        {
-            repository = github.getRepository( repositoryId );
-            workflow.setTopic( repository.getDescription() );
-            workflow.setGitVisibility( repository.isPrivate() ? GitVisibility.PRIVATE : GitVisibility.PUBLIC );
-        }
-        catch (IOException e)
-        {
-        }
-
-        //this.setLicenseInformation( workflow, repositoryId );
+        repository = getRepository( repositoryId );
+        workflow.setTopic( repository.getDescription() );
+        workflow.setGitVisibility( repository.isPrivate() ? GitVisibility.PRIVATE : GitVisibility.PUBLIC );
 
         try
         {
@@ -1709,18 +1549,27 @@ public class GitHubRepository
         } ).collect( Collectors.toSet() );
         version.setAuthors( authors );
 
-        final Set<OrcidAuthor> orcidAuthors = yamlAuthors.stream().filter( yamlAuthor -> yamlAuthor.getOrcid() != null/* && ORCIDHelper.isValidOrcidId(yamlAuthor.getOrcid())*/ )
+
+        final Set<OrcidAuthor> orcidAuthors = yamlAuthors.stream().filter( yamlAuthor -> yamlAuthor.getOrcid() != null && isValidOrcidId( yamlAuthor.getOrcid() ) )
                 .map( yamlAuthor -> {
-                    //                    OrcidAuthor existingOrcidAuthor = orcidAuthorDAO.findByOrcidId(yamlAuthor.getOrcid());
-                    //                    if (existingOrcidAuthor == null) {
-                    //                        long id = orcidAuthorDAO.create(new OrcidAuthor(yamlAuthor.getOrcid()));
-                    //                        return orcidAuthorDAO.findById(id);
-                    //                    } else {
-                    //                        return existingOrcidAuthor;
-                    //                    }
-                    return new OrcidAuthor( yamlAuthor.getOrcid() );
+                    String orcid = yamlAuthor.getOrcid();
+                    if( isValidOrcidId( orcid ) )
+                        return new OrcidAuthor( orcid );
+                    else
+                        return null;
                 } ).collect( Collectors.toSet() );
         version.setOrcidAuthors( orcidAuthors );
+    }
+
+    // Valid ORCIDs can end with 'X':
+    // https://support.orcid.org/hc/en-us/articles/360053289173-Why-does-my-ORCID-iD-have-an-X-
+    // Stephen Hawking's ORCID: https://orcid.org/0000-0002-9079-593X
+    public static final String ORCID_ID_REGEX = "\\d{4}-\\d{4}-\\d{4}-\\d{3}[X\\d]";
+    public static final Pattern ORCID_ID_PATTERN = Pattern.compile( ORCID_ID_REGEX );
+
+    public static boolean isValidOrcidId(String orcidId)
+    {
+        return ORCID_ID_PATTERN.matcher( orcidId ).matches();
     }
 
     /**
@@ -1762,17 +1611,9 @@ public class GitHubRepository
     {
         if( repositoryId != null )
         {
-            try
-            {
-                GHRepository repository = github.getRepository( repositoryId );
+            GHRepository repository = getRepository( repositoryId );
                 // Determine the default branch on GitHub
                 return repository.getDefaultBranch();
-            }
-            catch (IOException e)
-            {
-                LOG.error( "Unable to retrieve default branch for repository " + repositoryId, e );
-                return null;
-            }
         }
         return null;
     }
@@ -1980,7 +1821,7 @@ public class GitHubRepository
         }
     }
 
-    public String getWorkflowContent(String repositoryId, String repositoryRef, String mainDescriptorContent, String shortType, String filepath, StringContentProvider scp)
+    public String getWorkflowContent(String repositoryId, String repositoryRef, String mainDescriptorContent, String shortType, String filepath, GitHubFileContentProvider scp)
     {
         DescriptorLanguage descriptorLanguage = DescriptorLanguage.convertShortStringToEnum( shortType );
         LanguageHandlerInterface lang = LanguageHandlerFactory.getInterface( descriptorLanguage );

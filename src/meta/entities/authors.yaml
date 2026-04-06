@@ -1,0 +1,53 @@
+authors:
+  type: table
+  displayName: Authors
+  doc: Authors
+  primaryKey: ID
+  
+  scheme:
+    columns:
+    - ID:
+        type: KEYTYPE
+        autoIncrement: true
+        primaryKey: true
+    - name:
+        type: VARCHAR(200)
+        doc: Author name
+    - email:
+        type: VARCHAR(200)
+        doc: Author email
+        canBeNull: true
+    - role:
+        type: VARCHAR(200)
+        canBeNull: true
+    - affiliation:
+        type: VARCHAR(200)
+        canBeNull: true
+    - orcid:
+        type: VARCHAR(100)
+        doc: ORCID id
+        canBeNull: true
+    - whoInserted___:
+        type: VARCHAR(100)
+        defaultValue: '''Administrator'''
+    - creationDate___:
+        type: DATETIME
+        defaultValue: CURRENT_TIMESTAMP
+    - whoModified___:
+        type: VARCHAR(100)
+        canBeNull: true
+    - modificationDate___:
+        type: DATETIME
+        canBeNull: true
+        
+  queries:
+  - '*** Selection view ***':
+      code: |-
+        SELECT
+          a.ID,
+          a.name,
+          a.email,
+          a.orcid,
+          a.role,
+          a.affiliation
+        FROM authors a

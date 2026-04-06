@@ -1,11 +1,10 @@
 package ru.genespace.dockstore;
 
+import java.util.Objects;
+
 //This describes an ORCID-author of a version 
-public class OrcidAuthor {
-
-    //Implementation specific ID for the author in this web service
-    private long id;
-
+public class OrcidAuthor extends Author
+{
     //ORCID iD of the author
     private String orcid;
 
@@ -15,11 +14,22 @@ public class OrcidAuthor {
         this.orcid = orcid;
     }
 
-    public long getId() {
-        return this.id;
-    }
-
     public String getOrcid() {
         return orcid;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if( this == o )
+        {
+            return true;
+        }
+        if( !(o instanceof OrcidAuthor that) )
+        {
+            return false;
+        }
+
+        return Objects.equals( orcid, that.orcid );
     }
 }

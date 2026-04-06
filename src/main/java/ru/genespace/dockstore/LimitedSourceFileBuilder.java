@@ -18,15 +18,12 @@
 package ru.genespace.dockstore;
 
 import com.google.common.primitives.Bytes;
-//import io.dockstore.common.DescriptorLanguage;
 import java.nio.charset.StandardCharsets;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Build a SourceFile to which we've applied Dockstore's content limitations.
- * Require the file type, content, and paths.
+ * Build a SourceFile to which content limitations is applied. Require the file type, content, and paths.
  */
 public class LimitedSourceFileBuilder {
 
@@ -37,7 +34,6 @@ public class LimitedSourceFileBuilder {
 
     private DescriptorLanguage.FileType type;
     private String content;
-    private SourceFile.State state;
     private String path;
     private String absolutePath;
 
@@ -104,22 +100,18 @@ public class LimitedSourceFileBuilder {
                 logContentAction(path, "stub");
                 return;
             } else {
-                byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
-                if (Bytes.indexOf(bytes, Byte.decode("0x00")) != -1) {
-                    // Postgres cannot store strings that contain "NUL" (value 0) characters.
-                    // Thus, Dockstore cannot currently store binary files.
-                    // https://www.postgresql.org/docs/current/datatype-character.html#DATATYPE-CHARACTER
-                    // https://www.ascii-code.com/character/%E2%90%80
-                    file.setContent("Dockstore does not store binary files");
-                    file.setState(SourceFile.State.NOT_STORED);
-                    logContentAction(path, "binary file");
-                    return;
+                byte[] bytes = content.getBytes( StandardCharsets.UTF_8 );
+                //Binary file check, content is not stored by default
+                if( Bytes.indexOf( bytes, Byte.decode( "0x00" ) ) != -1 )
+                {
+                    file.setContent( null );
+                    file.setState( SourceFile.State.STUB );
+                    logContentAction( path, "binary file (NUL bytes found)" );
                 }
                 long maximumSize = computeMaximumSize(path);
                 if (bytes.length > maximumSize) {
                     // A large file is probably up to no good.
-                    double megabytes = maximumSize / (double) BYTES_PER_MEGABYTE;
-                    file.setContent("Dockstore does not store files of this type over %.1fMB in size".formatted(megabytes));
+                    file.setContent( null );
                     file.setState(SourceFile.State.NOT_STORED);
                     logContentAction(path, "large file (%n bytes)".formatted(bytes.length));
                     return;
@@ -135,7 +127,8 @@ public class LimitedSourceFileBuilder {
         private long computeMaximumSize(String path)
         {
             // Jupyter notebook files can contain embedded images, making them tend to be larger.
-            if (StringUtils.endsWith(path, ".ipynb")) {
+            if( path != null && path.endsWith( ".ipynb" ) )
+            {
                 return NOTEBOOK_MAXIMUM_FILE_SIZE;
             }
             return MAXIMUM_FILE_SIZE;

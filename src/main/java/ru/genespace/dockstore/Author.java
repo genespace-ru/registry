@@ -21,9 +21,6 @@ import java.util.Objects;
 
 public class Author implements Serializable {
 
-    //Implementation specific ID for the author in this web service
-    private long id;
-
     //Name of the author
     private String name;
 

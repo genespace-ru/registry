@@ -18,6 +18,8 @@ import org.kohsuke.github.GHRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.developmentontheedge.be5.database.DbService;
+
 import ru.genespace.content.CachedContentManager;
 import ru.genespace.content.ContentManager;
 import ru.genespace.dockstore.AppTool;
@@ -40,7 +42,7 @@ import ru.genespace.github.GitHubRepository.GitVisibility;
 import ru.genespace.github.GitHubRepository.SourceControl;
 import ru.genespace.misc.CustomLoggedException;
 
-public class GitHubManager implements StringContentProvider
+public class GitHubManager implements GitHubFileContentProvider
 {
     public static final Logger LOG = LoggerFactory.getLogger( GitHubManager.class );
 
@@ -53,7 +55,7 @@ public class GitHubManager implements StringContentProvider
     {
         this.gitUsername = gitUsername;
         this.gitToken = gitToken;
-        repo = new GitHubRepository( gitUsername, gitToken, null );
+        repo = new GitHubRepository( gitUsername, gitToken );
 
     }
 
@@ -201,6 +203,7 @@ public class GitHubManager implements StringContentProvider
                 }
             }
         }
+        LOG.info( "Github repository was retrieved {} times while reading repo {}", repo.getRepoCallCounter(), repositoryId );
         return workflows;
     }
 
@@ -218,7 +221,7 @@ public class GitHubManager implements StringContentProvider
         workflow.setGitUrl( "git@github.com:" + repositoryId + ".git" );
         workflow.setLastUpdated( new Date() );
         workflow.setDefaultWorkflowPath( DOCKSTORE_YML_PATH );
-        workflow.setMode( WorkflowMode.DOCKSTORE_YML );
+        //workflow.setMode( WorkflowMode.DOCKSTORE_YML );
 
         //workflow.setTopicAutomatic( repository.getDescription() );
         workflow.setGitVisibility( GitVisibility.PUBLIC );

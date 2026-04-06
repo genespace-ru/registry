@@ -1,6 +1,6 @@
 package ru.genespace.github;
 
-public interface StringContentProvider
+public interface GitHubFileContentProvider
 {
     public String getFileContent(String repositoryId, String reference, String fileName);
 }
