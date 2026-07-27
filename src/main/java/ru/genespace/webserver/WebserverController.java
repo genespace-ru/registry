@@ -22,6 +22,8 @@ import com.developmentontheedge.be5.web.Response;
 
 import biouml.model.Diagram;
 import biouml.model.util.DiagramImageGenerator;
+import biouml.plugins.wdl.FileScriptLoader;
+import biouml.plugins.wdl.ScriptLoader;
 import biouml.plugins.wdl.diagram.WDLImporter;
 import biouml.plugins.wdl.diagram.WDLLayouter;
 import biouml.plugins.wdl.nextflow.NextFlowImporter;
@@ -35,6 +37,7 @@ import ru.biosoft.util.TextUtil2;
 import ru.genespace.content.CachedContentManager;
 import ru.genespace.dockstore.languages.MarkdownHelper;
 import ru.genespace.github.GitHubManager;
+import ru.genespace.github.GitHubScriptLoader;
 
 public class WebserverController extends BaseControllerSupport
 {
@@ -264,12 +267,17 @@ public class WebserverController extends BaseControllerSupport
             {
             case "WDL":
                 WDLImporter importerWDL = new WDLImporter();
+                ScriptLoader wdlScriptLoader = new GitHubScriptLoader( ScriptLoader.WDL_TYPE, gitHubManager, repositoryName, reference, primaryDescriptorPath, shortType, cache );
+                importerWDL.setScriptLoader( wdlScriptLoader );
                 diagram = importerWDL.generateDiagram( file, reference, null );
                 break;
             case "CWL":
 
             case "NFL":
                 NextFlowImporter importerNFL = new NextFlowImporter();
+                ScriptLoader nextflowScriptLoader = new GitHubScriptLoader( ScriptLoader.NEXTFLOW_TYPE, gitHubManager, repositoryName, reference, primaryDescriptorPath, shortType,
+                        cache );
+                importerNFL.setScriptLoader( nextflowScriptLoader );
                 diagram = importerNFL.importNextflow( workflowContent );
                 break;
             }

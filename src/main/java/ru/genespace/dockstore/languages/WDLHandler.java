@@ -544,7 +544,7 @@ public class WDLHandler implements LanguageHandlerInterface {
         ScriptInfo wdlScriptInfo = null;
         try
         {
-            wdlScriptInfo = new WDLImporter().generateScriptInfo( mainDescriptor, "test" );
+            wdlScriptInfo = new WDLImporter().readScript( "test", mainDescriptor );
         }
         catch (Exception e)
         {
