@@ -42,7 +42,14 @@
       <artifactId>junit</artifactId>
       <version>[4.12,)</version>
       <scope>test</scope>
-    </dependency>	
+    </dependency>
+
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>5.14.1</version>
+      <scope>test</scope>
+    </dependency>
 
     <!-- Sample dependency on BE5 module -->
     <dependency>
