@@ -24,6 +24,30 @@ en:
     - topics: viewName
       entries:
       - Login: Login
+  - resources:
+    - topics: displayName
+      entries:
+      - Resources: Resources
+    - topics: '@AllQueries'
+      entries:
+      - Repository: Repository
+      - Name: Name
+      - Type: Type
+      - Language: Language
+      - Description: Description
+      - Info: Info
+      - Created: Created
+      - Modified: Modified
+  - repositories:
+    - topics: displayName
+      entries:
+      - Repositories: Repositories
+    - topics: '@AllQueries'
+      entries:
+      - Repository: Repository
+      - DOI: DOI
+      - Created: Created
+      - Modified: Modified
   - query.jsp:
     - topics: page
       entries:

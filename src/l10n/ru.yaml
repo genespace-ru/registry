@@ -24,6 +24,30 @@ ru:
     - topics: viewName
       entries:
       - Login: Вход
+  - resources:
+    - topics: displayName
+      entries:
+      - Resources: Ресурсы
+    - topics: '@AllQueries'
+      entries:
+      - Repository: Репозиторий
+      - Name: Имя
+      - Type: Тип
+      - Language: Язык
+      - Description: Описание
+      - Info: Информация
+      - Created: Создан
+      - Modified: Изменён
+  - repositories:
+    - topics: displayName
+      entries:
+      - Repositories: Репозитории
+    - topics: '@AllQueries'
+      entries:
+      - Repository: Репозиторий
+      - DOI: DOI
+      - Created: Создан
+      - Modified: Изменён
   - query.jsp:
     - topics: page
       entries:
