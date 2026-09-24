@@ -36,7 +36,7 @@ public class GitHubScriptLoader extends ScriptLoader
     public ScriptInfo loadScript(String path) throws Exception
     {
         Path scriptPath = baseScriptPath.resolve( path ).normalize();
-        String content = manager.getWorkflowContent( repositoryId, repositoryRef, scriptPath.toString(), shortType, cache );
+        String content = manager.getFileContent( repositoryId, repositoryRef, scriptPath.toString() );
         String name = scriptPath.getFileName().toString();
 
         ScriptInfo importedScript = this.readScript( name, content );
